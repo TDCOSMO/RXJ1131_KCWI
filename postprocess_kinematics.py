@@ -6,7 +6,7 @@ from pafit.fit_kinematic_pa import fit_kinematic_pa
 from getdist import plots
 from getdist import MCSamples
 import seaborn as sns
-from output_class import ModelOutput
+from output_class import DynamicalModel
 import paperfig
 
 
@@ -23,10 +23,10 @@ class PostProcessKinematics(object):
         """
         self.bin_mapping = None
 
-        self.dynamical_model_ifu = ModelOutput('../lens_model_chain/'
-                        'multivariate_gaussian_resampled_chain.txt', cgd=True)
-        self.dynamical_model_aperture = ModelOutput('../lens_model_chain/'
-                        'multivariate_gaussian_resampled_chain.txt', cgd=True)
+        self.dynamical_model_ifu = DynamicalModel('../lens_model_chain/powerlaw/'
+                        'multivariate_gaussian_resampled_chain_pl.txt', cgd=True)
+        self.dynamical_model_aperture = DynamicalModel('../lens_model_chain/powerlaw/'
+                        'multivariate_gaussian_resampled_chain_pl.txt', cgd=True)
 
 
         fiducial_cosmo = FlatLambdaCDM(H0=70, Om0=0.3)

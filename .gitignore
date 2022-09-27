@@ -1,6 +1,7 @@
 .DS_Store
 .pysex.*
 .pysex*
+old_files/*
 lenstronomy_modeling/data/reduced_data/
 lenstronomy_modeling/temp
 lenstronomy_modeling/notebooks/.ipynb_checkpoints/

@@ -12,7 +12,7 @@ of <run_id>. The <run_id>_out.txt file needs to be in `base_dir`.
 import numpy as np
 import sys
 from astropy.io import fits
-from output_class import ModelOutput
+from output_class import DynamicalModel
 
 is_cluster = True
 
@@ -51,9 +51,9 @@ else:
     base_dir = '/u/home/a/ajshajib/RXJ1131_kinematics/'
     out_dir = '/u/flashscratch/a/ajshajib/RXJ1131_vel_dis_{}/'.format(software)
 
-output = ModelOutput(base_dir + output_file, cgd=True
-                     #is_test=False
-                    )
+output = DynamicalModel(base_dir + output_file, cgd=True
+                        #is_test=False
+                        )
 
 # binning = fits.getdata('voronoi_binning_KCWI_RXJ1131_icubes_mosaic_0'
 #                        '.1457_bin_number.fits') - 1
