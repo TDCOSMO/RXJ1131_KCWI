@@ -40,13 +40,13 @@ class DynamicalModel(object):
     """
     PSF_FWHM = 0.7
     X_GRID, Y_GRID = np.meshgrid(
-        np.arange(-3.0597, 3.1597, 0.1457), # x-axis points to negative RA
+        -1 * np.arange(-3.0597, 3.1597, 0.1457), # x-axis points to negative RA
         np.arange(-3.0597, 3.1597, 0.1457),
     )
 
     PIXEL_SIZE = 0.1457
-    X_CENTER = (21.5 - 21.5) * PIXEL_SIZE # 21.5
-    Y_CENTER = (23.5 - 21.5) * PIXEL_SIZE # 23.5
+    X_CENTER = -(24 - 21.) * PIXEL_SIZE # 23.5
+    Y_CENTER = (22 - 21.) * PIXEL_SIZE # 21.5
 
     Z_L = 0.295 # deflector redshift from Agnello et al. (2018)
     Z_S = 0.657 # source redshift
@@ -56,7 +56,7 @@ class DynamicalModel(object):
     n_sersic_1 = lambda _: np.random.normal(0.93, 0.03)
     I_light_1 = lambda _: np.random.normal(0.091, 0.001)
     q_light_1 = lambda _: 0.878 #np.random.normal(0.921, 0.004)
-    phi_light_1 = lambda _: 90 - 121.6 # np.random.normal(90-121.6, 0.5)
+    phi_light_1 = lambda _: 121.6 # np.random.normal(90-121.6, 0.5)
 
     R_sersic_2 = lambda _: np.random.normal(0.362, 0.009) * np.sqrt(0.849)
     # np.sqrt(np.random.normal(0.867, 0.002))
@@ -71,7 +71,8 @@ class DynamicalModel(object):
                  cosmo=None,
                  do_mge_light=True,
                  include_light_profile_uncertainty=False,
-                 is_spherical_model=False
+                 is_spherical_model=False,
+                 n_gauss=20
                  ):
         """
         Load the model output file and load the posterior chain and other model
@@ -84,11 +85,13 @@ class DynamicalModel(object):
         self._do_mge_light = do_mge_light
         self._light_profile_uncertainty = include_light_profile_uncertainty
         self._is_spherical_model = is_spherical_model
+        self._n_gauss = n_gauss
 
         if self._do_mge_light:
             self.kwargs_model = {
                 'lens_model_list': ['PEMD'],
-                'lens_light_model_list': ['SERSIC', 'SERSIC'],
+                #'lens_light_model_list': ['SERSIC', 'SERSIC'],
+                'lens_light_model_list': ['MULTI_GAUSSIAN'],
             }
         else:
             self.kwargs_model ={
@@ -116,7 +119,7 @@ class DynamicalModel(object):
         """
 
         """
-        q1, phi = self.q_light_1(), self.phi_light_1()
+        q1, phi = self.q_light_1(), 90. - self.phi_light_1()
         e11, e12 = phi_q2_ellipticity(phi, q1)
 
         q2 = self.q_light_2()
@@ -175,17 +178,16 @@ class DynamicalModel(object):
 
     def get_lenstronomy_light_kwargs(self, surf_lum, sigma_lum, qobs_lum):
         """
-
         """
 
-    def get_light_profile_mge(self):
+    def get_light_profile_mge(self, common_ellipticity=True):
         """
         Get MGE of the double Sersic light profile.
         """
-        if not self._light_profile_uncertainty:
-            return self.get_light_mge_2d()
-        else:
-            pass
+        # if not self._light_profile_uncertainty:
+        #     return self.get_light_mge_2d()
+        # else:
+        #     pass
             # will compute light profile using mge_1d() below
 
         kwargs_light = self.get_double_sersic_kwargs(is_shperical=True)
@@ -204,27 +206,48 @@ class DynamicalModel(object):
         rs_1 = np.logspace(-2.5, 2, n) * kwargs_light[0]['R_sersic']
         rs_2 = np.logspace(-2.5, 2, n) * kwargs_light[1]['R_sersic']
 
-        flux_r_1 = light_model.surface_brightness(rs_1, 0 * rs_1, kwargs_light,
-                                                  k=0)
-        flux_r_2 = light_model.surface_brightness(rs_2, 0 * rs_2, kwargs_light,
-                                                  k=1)
+        if not common_ellipticity:
+            flux_r_1 = light_model.surface_brightness(rs_1, 0 * rs_1, kwargs_light,
+                                                      k=0)
+            flux_r_2 = light_model.surface_brightness(rs_2, 0 * rs_2, kwargs_light,
+                                                      k=1)
 
-        mge_fit_1 = mge_fit_1d(rs_1, flux_r_1, ngauss=20, quiet=True)
-        mge_fit_2 = mge_fit_1d(rs_2, flux_r_2, ngauss=20, quiet=True)
+            mge_fit_1 = mge_fit_1d(rs_1, flux_r_1, ngauss=self._n_gauss,
+                                   quiet=True)
+            mge_fit_2 = mge_fit_1d(rs_2, flux_r_2, ngauss=self._n_gauss,
+                                   quiet=True)
 
-        mge_1 = (mge_fit_1.sol[0], mge_fit_1.sol[1])
-        mge_2 = (mge_fit_2.sol[0], mge_fit_2.sol[1])
+            mge_1 = (mge_fit_1.sol[0], mge_fit_1.sol[1])
+            mge_2 = (mge_fit_2.sol[0], mge_fit_2.sol[1])
 
-        sigma_lum = np.append(mge_1[1], mge_2[1])
-        surf_lum = np.append(mge_1[0], mge_2[0]) / (np.sqrt(2*np.pi)*sigma_lum)
+            sigma_lum = np.append(mge_1[1], mge_2[1])
+            surf_lum = np.append(mge_1[0], mge_2[0]) / (np.sqrt(2*np.pi)*sigma_lum)
 
-        _, q_1 = ellipticity2phi_q(e11,
-                                   e12)  # kwargs_light[0]['e1'], kwargs_light[0]['e2'])
-        _, q_2 = ellipticity2phi_q(e21,
-                                   e22)  # kwargs_light[1]['e1'], kwargs_light[1]['e2'])
+            _, q_1 = ellipticity2phi_q(e11,
+                                       e12)  # kwargs_light[0]['e1'], kwargs_light[0]['e2'])
+            _, q_2 = ellipticity2phi_q(e21,
+                                       e22)  # kwargs_light[1]['e1'], kwargs_light[1]['e2'])
 
-        qobs_lum = np.append(np.ones_like(mge_1[1]) * q_1,
-                             np.ones_like(mge_2[1]) * q_2)
+            qobs_lum = np.append(np.ones_like(mge_1[1]) * q_1,
+                                 np.ones_like(mge_2[1]) * q_2)
+        else:
+            flux_r_1 = light_model.surface_brightness(rs_1, 0 * rs_1,
+                                                      kwargs_light,
+                                                      k=0)
+
+            mge_fit_1 = mge_fit_1d(rs_1, flux_r_1, ngauss=20, quiet=True)
+
+            mge_1 = (mge_fit_1.sol[0], mge_fit_1.sol[1])
+
+            sigma_lum = mge_1[1]
+            surf_lum = mge_1[0] / (np.sqrt(2 * np.pi) * sigma_lum)
+
+            _, q_1 = ellipticity2phi_q(e11,
+                                       e12)  # kwargs_light[0]['e1'], kwargs_light[0]['e2'])
+            _, q_2 = ellipticity2phi_q(e21,
+                                       e22)  # kwargs_light[1]['e1'], kwargs_light[1]['e2'])
+
+            qobs_lum = np.ones_like(mge_1[1]) * q_1
 
         sorted_indices = np.argsort(sigma_lum)
         sigma_lum = sigma_lum[sorted_indices]
@@ -250,7 +273,8 @@ class DynamicalModel(object):
         mass_r = lens_model.kappa(r_array, r_array * 0, kwargs_lens)
 
         # amps, sigmas, _ = mge.mge_1d(r_array, mass_r, N=20)
-        mass_mge = mge_fit_1d(r_array, mass_r, ngauss=20, quiet=True,
+        mass_mge = mge_fit_1d(r_array, mass_r, ngauss=self._n_gauss,
+                              quiet=True,
                               plot=False)
         sigmas = mass_mge.sol[1]
         amps = mass_mge.sol[0] / (np.sqrt(2*np.pi) * sigmas)
@@ -314,17 +338,16 @@ class DynamicalModel(object):
         """
         xs_ = xs - x_center
         ys_ = ys - y_center
-        # angle *= np.pi / 180.
+        angle *= np.pi / 180.
 
         xs_rotated = xs_ * np.cos(angle) + ys_ * np.sin(angle)
         ys_rotated = -xs_ * np.sin(angle) + ys_ * np.cos(angle)
 
         return xs_rotated, ys_rotated
 
-    def get_jam_grid(self, phi=0., supersampling_factor=1):
+    def get_supersampled_grid(self, supersampling_factor=1):
         """
         """
-
         # n_pix = self.X_GRID.shape[0] * oversampling_factor
         # pix_size = self.PIXEL_SIZE / oversampling_factor
         #
@@ -355,8 +378,13 @@ class DynamicalModel(object):
 
         x_grid_supersampled, y_grid_supersmapled = np.meshgrid(xs, ys)
 
-        # x_grid = -(x_grid - x_center_coord)
-        # y_grid = (y_grid - y_center_coord)
+        return x_grid_supersampled, y_grid_supersmapled
+
+    def get_jam_grid(self, phi=0., supersampling_factor=1):
+        """
+        """
+        x_grid_supersampled, y_grid_supersmapled = \
+            self.get_supersampled_grid(supersampling_factor=supersampling_factor)
 
         x_grid, y_grid = self.transform_pix_coords(x_grid_supersampled,
                                             y_grid_supersmapled,
@@ -391,13 +419,14 @@ class DynamicalModel(object):
 
     def compute_jampy_v_rms_model(self, theta_e, gamma,
                                   ani_param,
-                                  q=1, pa=0,
-                                  inclination=0,
+                                  q=1, pa=121,
+                                  inclination=90,
                                   anisotropy_model='Oskipkov-Merritt',
                                   do_convolve=True,
                                   supersampling_factor=5,
                                   voronoi_bins=None,
-                                  om_r_scale=None
+                                  om_r_scale=None,
+                                  single_slit=False
                                   ):
         """
         :param pa: positoin angle in radian
@@ -413,7 +442,7 @@ class DynamicalModel(object):
         bs = self.get_anisotropy_bs(ani_param, surf_lum, sigma_lum,
                                     model=anisotropy_model
                                     )
-        phi = 180. - pa/np.pi*180.
+        phi = 90 - pa #/np.pi*180.
 
         x_grid_spaxel, y_grid_spaxel, _, _ = self.get_jam_grid(phi,
                                                         supersampling_factor=1)
@@ -651,11 +680,11 @@ class DynamicalModel(object):
                              # 'moffat_beta': self.MOFFAT_BETA[n]
                              }
 
-        if self._do_mge_light:
-            light_model_bool = [True, True]
-        else:
-            light_model_bool = [True]
-
+        # if self._do_mge_light:
+        #     light_model_bool = [True, True]
+        # else:
+        #     light_model_bool = [True]
+        light_model_bool = [True]
         lens_model_bool = [True]
 
         kinematics_api = KinematicsAPI(z_lens=self.Z_L, z_source=self.Z_S,
@@ -668,9 +697,9 @@ class DynamicalModel(object):
                                        light_model_kinematics_bool=light_model_bool,
                                        multi_observations=False,
                                        kwargs_numerics_galkin=self.kwargs_galkin_numerics,
-                                       analytic_kinematics=(not self._do_mge_light),
+                                       analytic_kinematics=False, #(not self._do_mge_light),
                                        Hernquist_approx=False,
-                                       MGE_light=self._do_mge_light,
+                                       MGE_light=False, #self._do_mge_light,
                                        MGE_mass=False,  #self._do_mge_light,
                                        kwargs_mge_light=None,
                                        kwargs_mge_mass=None,
@@ -817,8 +846,15 @@ class DynamicalModel(object):
                         }]
 
         if self._do_mge_light:
-            kwargs_lens_light = self.get_double_sersic_kwargs(
-                is_shperical=True)
+            # kwargs_lens_light = self.get_double_sersic_kwargs(
+            #     is_shperical=True)
+            amp, sigma, _ = self.get_light_profile_mge()
+            kwargs_lens_light = [{
+                'amp': amp * (2 * np.pi * sigma**2),
+                'sigma': sigma,
+                'center_x': self.X_CENTER,
+                'center_y': self.Y_CENTER
+            }]
         else:
             kwargs_lens_light = [{'amp': 1.,
                                   'Rs': self.R_EFF * r_eff_multiplier / (1 + np.sqrt(2)),
@@ -836,271 +872,3 @@ class DynamicalModel(object):
             raise ValueError('anisotropy model {} not recognized!'.format(anisotropy_model))
 
         return kwargs_lens, kwargs_lens_light, kwargs_anisotropy
-
-
-class KinematicLikelihood(object):
-
-    def __init__(self,
-                 lens_model_type='powerlaw',
-                 software='jampy',
-                 anisotropy='Osipkov-Meritt',
-                 aperture='ifu',
-                 snr_per_bin=15,
-                 is_spherical=False
-                 ):
-        """
-
-        """
-        self.lens_model_type = lens_model_type
-        self.software = software
-        self.anistropy = anisotropy
-        self.aperture = aperture
-        self.snr_per_bin = snr_per_bin
-        self.is_spherical = is_spherical
-
-        self.bin_mapping = None
-        self.load_bin_map(self.snr_per_bin)
-
-        self.velocity_dispersion_mean = None
-        self.velocity_dispersion_covariance = None
-
-        if self.aperture == 'single_slit':
-            self.velocity_dispersion_mean = 323 # km/s
-            self.velocity_dispersion_covariance = 20**2 # km/s
-        else:
-            self.load_velocity_dispersion_data_ifu(self.snr_per_bin)
-
-        self.lens_model_posterior_mean = None
-        self.lens_model_posterior_covariance = None
-        self.load_lens_model_posterior(self.lens_model_type)
-
-        self._inclination_prior_interp = None
-
-        if self.software == 'galkin':
-            if True:
-                self.kwargs_model = {
-                    'lens_model_list': ['PEMD'],
-                    'lens_light_model_list': ['SERSIC', 'SERSIC'],
-                }
-            else:
-                self.kwargs_model = {
-                    'lens_model_list': ['PEMD'],
-                    'lens_light_model_list': ['HERNQUIST'],
-                }
-
-            # numerical options to perform the numerical integrals
-            self.kwargs_galkin_numerics = {  # 'sampling_number': 1000,
-                'interpol_grid_num': 1000,
-                'log_integration': True,
-                'max_integrate': 100,
-                'min_integrate': 0.001}
-
-            self.lens_cosmo = LensCosmo(self.Z_L, self.Z_S, cosmo=cosmo)
-
-            self._kwargs_cosmo = {'d_d': self.lens_cosmo.dd,
-                                  'd_s': self.lens_cosmo.ds,
-                                  'd_ds': self.lens_cosmo.dds}
-
-            self.td_cosmography = TDCosmography(z_lens=self.Z_L,
-                                                z_source=self.Z_S,
-                                                kwargs_model=self.kwargs_model)
-            self.kinematics_api = None
-            self.setup_galkin_api(self.anistropy, self.aperture)
-
-    def setup_galkin_api(self, anisotropy, aperture):
-        """
-
-        """
-        if anisotropy == 'Osipkov-Merritt':
-            anisotropy_type = 'OM'  # anisotropy model applied
-        elif anisotropy == 'constant':
-            anisotropy_type = 'const'
-        else:
-            raise ValueError('anisotropy model {} model not '
-                             'supported!'.format(anisotropy))
-
-        if aperture == 'single_slit':
-            kwargs_aperture = {'aperture': 'slit',
-                               'length': 1.,
-                               'width': 0.81,
-                               'center_ra': 0.,
-                               # lens_light_result[0]['center_x'],
-                               'center_dec': 0.,
-                               # lens_light_result[0]['center_y'],
-                               'angle': 0
-                               }
-            kwargs_seeing = {'psf_type': 'GAUSSIAN',
-                             'fwhm': 0.7,
-                             # 'moffat_beta': self.MOFFAT_BETA[n]
-                             }
-        else:
-            kwargs_aperture = {'aperture': 'IFU_grid',
-                               'x_grid': self.X_GRID,
-                               'y_grid': self.Y_GRID,
-                               #'angle': 0
-                               }
-            kwargs_seeing = {'psf_type': 'GAUSSIAN',
-                             'fwhm': self.PSF_FWHM,
-                             # 'moffat_beta': self.MOFFAT_BETA[n]
-                             }
-
-        if self._cgd:
-            light_model_bool = [True, True]
-        else:
-            light_model_bool = [True]
-        lens_model_bool = [True]
-
-        self.kinematics_api = KinematicsAPI(z_lens=self.Z_L, z_source=self.Z_S,
-                                       kwargs_model=self.kwargs_model,
-                                       kwargs_aperture=kwargs_aperture,
-                                       kwargs_seeing=kwargs_seeing,
-                                       anisotropy_model=anisotropy_type,
-                                       cosmo=None,
-                                       lens_model_kinematics_bool=lens_model_bool,
-                                       light_model_kinematics_bool=light_model_bool,
-                                       multi_observations=False,
-                                       kwargs_numerics_galkin=self.kwargs_galkin_numerics,
-                                       analytic_kinematics=(not self._cgd),
-                                       Hernquist_approx=False,
-                                       MGE_light=self._cgd,
-                                       MGE_mass=False, #self._do_mge_light,
-                                       kwargs_mge_light=None,
-                                       kwargs_mge_mass=None,
-                                       sampling_number=1000,
-                                       num_kin_sampling=2000,
-                                       num_psf_sampling=500,
-                                       )
-
-    def get_galkin_velocity_dispersion(self, theta_e, gamma):
-        """
-        """
-
-    def get_lens_kwargs(self, theta_E, gamma,
-                        anisotropy_model, ani_param
-                        ):
-        """
-
-        """
-        kwargs_lens = [{'theta_E': theta_E,
-                        'gamma': gamma,
-                        'e1': 0., 'e2': 0.,
-                        'center_x': self.X_CENTER,
-                        'center_y': self.Y_CENTER
-                        }]
-
-        if self._cgd:
-            kwargs_lens_light = self.get_double_sersic_kwargs(
-                is_shperical=True)
-        else:
-            kwargs_lens_light = [{'amp': 1., 'Rs': self.R_EFF / (1 + np.sqrt(
-                2)),
-                                  'center_x': self.X_CENTER,
-                                  'center_y': self.Y_CENTER
-                                  }]
-
-        # set the anisotropy radius. r_eff is pre-computed half-light
-        # radius of the lens light
-        if anisotropy_model == 'Osipkov-Merritt':
-            kwargs_anisotropy = {'r_ani': ani_param * r_eff}
-        elif anisotropy_model == 'constant':
-            kwargs_anisotropy = {'beta': ani_param}
-
-        return kwargs_lens, kwargs_lens_light, kwargs_anisotropy
-
-
-    def load_lens_model_posterior(self, lens_model_type):
-        """
-
-        """
-        with h5.File('./data_products/lens_model_posterior_{}.h5'.format(
-                lens_model_type)) as f:
-            self.lens_model_posterior_mean = f['mean'][()]
-            self.lens_model_posterior_covariance = f['covariance'][()]
-
-    def load_velocity_dispersion_data_ifu(self, snr_per_bin):
-        """
-
-        """
-        with h5.File('./data_products/'
-                     'systematic_marginalized_velocity_dispersion'
-                     '_snr_per_bin_{}.h5'.format(snr_per_bin)) as f:
-            self.velocity_dispersion_mean = f['mean'][()]
-            self.velocity_dispersion_covariance = f['covariance'][()]
-
-    def load_bin_map(self, snr_per_bin, plot=False):
-        """
-        """
-        bins = np.loadtxt('./data_products/binning_map_snr_per_bin_{'
-                          '}.txt'.format(snr_per_bin))
-        # bins -= 1 # unbinned pixels set to -1
-
-        self.bin_mapping = np.zeros((43, 43))
-
-        for a in bins:
-            self.bin_mapping[int(a[1])][int(a[0])] = int(a[2]) + 1
-
-        self.bin_mapping -= 1
-
-        self.bin_mapping[self.bin_mapping < 0] = np.nan
-
-        if plot:
-            cbar = plt.matshow(self.bin_mapping, cmap='turbo', origin='lower')
-            plt.colorbar(cbar)
-            plt.title('Bin mapping')
-            plt.show()
-
-        return self.bin_mapping
-
-    def log_prior(self, params):
-        """
-        """
-
-    def inclination_prior(self, inclination):
-        """
-
-        """
-        if self._inclination_prior_interp is None:
-            scrapped_points = np.array([
-                0, 0,
-                0.05, 0,
-                0.116, 0,
-                0.17, 0.049,
-                0.223, 0.223,
-                0.272, 0.467,
-                0.322, 0.652,
-                0.376, 0.745,
-                0.426, 0.842,
-                0.475, 0.995,
-                0.525, 1.109,
-                0.577, 1.217,
-                0.626, 1.337,
-                0.676, 1.484,
-                0.725, 1.516,
-                0.776, 1.576,
-                0.826, 1.489,
-                0.876, 1.342,
-                0.928, 1.076,
-                0.976, 0.755,
-            ])
-
-            x = scrapped_points[::2]
-            y = scrapped_points[1::2]
-
-            self._inclination_prior_interp = interp1d(x, y, bounds_error=False,
-                                   fill_value=0.)
-        else:
-            pass
-
-        return np.log(self._inclination_prior_interp(inclination))
-
-    def log_likelihood(self, params):
-        """
-        """
-
-    def lens_model_likelihood(self, theta_e, gamma, q, PA, ):
-        """
-
-        """
-    def log_probability(self, params):
-        """
-        """
