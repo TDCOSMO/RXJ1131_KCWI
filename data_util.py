@@ -6,7 +6,8 @@ def load_bin_mapping(target_snr_per_bin=15, plot=False):
     """
     Return vornoi bin mapping. -1 is masked pixel. Unmasked pixel start counting from 0.
     """
-    url = "../kcwi_extractions/extracted_dispersions/voronoi_2d_binning_KCWI_RXJ1131_icubes_mosaic_0.1457_targetSN_{}_output.txt".format(target_snr_per_bin)
+    url = "./data_products/voronoi_2d_binning_KCWI_RXJ1131_icubes_mosaic_0" \
+          ".1457_targetSN_{}_output.txt".format(target_snr_per_bin)
         
     bins = np.loadtxt(url)
     # bins -= 1 # unbinned pixels set to -1
@@ -18,7 +19,7 @@ def load_bin_mapping(target_snr_per_bin=15, plot=False):
 
     bin_mapping -= 1
 
-    #bin_mapping[bin_mapping < 0] = np.nan
+    #voronoi_bin_mapping[voronoi_bin_mapping < 0] = np.nan
 
     if plot:
         cbar = plt.matshow(bin_mapping, cmap='turbo', origin='lower')
@@ -29,8 +30,7 @@ def load_bin_mapping(target_snr_per_bin=15, plot=False):
     return bin_mapping
 
 
-def get_kinematics_maps(VD_array, bin_mapping,
-                       ):
+def get_kinematics_maps(VD_array, bin_mapping):
     """
     Remap the kinematics measurements above into 2D array. -1 is masked pixel.
     :return: 2D velocity dispersion, uncertainty of the velocity

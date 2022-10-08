@@ -7,7 +7,6 @@ from astropy.io import fits
 from scipy.interpolate import interp1d
 from scipy import optimize
 import matplotlib.pyplot as plt
-import h5py as h5
 
 from lenstronomy.Sampling.parameters import Param
 from lenstronomy.Analysis.kinematics_api import KinematicsAPI
@@ -36,7 +35,7 @@ base_path, _ = os.path.split(cwd)
 
 class DynamicalModel(object):
     """
-    Class to compute velocity dispersion in spherical symmetry for RXJ 1131.
+    Class to compute velocity dispersion in is_spherical symmetry for RXJ 1131.
     """
     PSF_FWHM = 0.7
     X_GRID, Y_GRID = np.meshgrid(
@@ -71,12 +70,13 @@ class DynamicalModel(object):
                  cosmo=None,
                  do_mge_light=True,
                  include_light_profile_uncertainty=False,
-                 is_spherical_model=False,
+                 # is_spherical_model=False,
                  n_gauss=20
                  ):
         """
         Load the model output file and load the posterior chain and other model
-        speification objects.
+        speification objects
+        :param do_mge_light: if True, `jampy` and `Galkin` will use the same MGE for light profile
         """
         if mass_profile not in ['powerlaw', 'composite']:
             raise ValueError('Mass profile "{}" not recognized!'.format(
@@ -84,7 +84,7 @@ class DynamicalModel(object):
 
         self._do_mge_light = do_mge_light
         self._light_profile_uncertainty = include_light_profile_uncertainty
-        self._is_spherical_model = is_spherical_model
+        # self._is_spherical_model = is_spherical_model
         self._n_gauss = n_gauss
 
         if self._do_mge_light:
@@ -96,7 +96,7 @@ class DynamicalModel(object):
         else:
             self.kwargs_model ={
                 'lens_model_list': ['PEMD'],
-                'lens_light_model_list': ['HERNQUIST'],
+                'lens_light_model_list': ['SERSIC', 'SERSIC'],
             }
 
         # numerical options to perform the numerical integrals
@@ -154,7 +154,7 @@ class DynamicalModel(object):
             return kwargs_lens_light
 
     @staticmethod
-    def get_light_mge_2d(r_eff_multiplier=1):
+    def get_light_mge_2d_fit(r_eff_multiplier=1):
         """
         Return light profile MGE for double Sersic fitted using mge_2d() in
         a separate notebook.
@@ -179,13 +179,16 @@ class DynamicalModel(object):
     def get_lenstronomy_light_kwargs(self, surf_lum, sigma_lum, qobs_lum):
         """
         """
+        raise NotImplementedError
 
-    def get_light_profile_mge(self, common_ellipticity=True):
+    def get_light_mge(self, common_ellipticity=True,
+                      is_spherical=False
+                      ):
         """
         Get MGE of the double Sersic light profile.
         """
         # if not self._light_profile_uncertainty:
-        #     return self.get_light_mge_2d()
+        #     return self.get_light_mge_2d_fit()
         # else:
         #     pass
             # will compute light profile using mge_1d() below
@@ -203,10 +206,10 @@ class DynamicalModel(object):
             kwargs_light[i]['center_y'] = 0
 
         n = 300
-        rs_1 = np.logspace(-2.5, 2, n) * kwargs_light[0]['R_sersic']
-        rs_2 = np.logspace(-2.5, 2, n) * kwargs_light[1]['R_sersic']
 
         if not common_ellipticity:
+            rs_1 = np.logspace(-2.5, 2, n) * kwargs_light[0]['R_sersic']
+            rs_2 = np.logspace(-2.5, 2, n) * kwargs_light[1]['R_sersic']
             flux_r_1 = light_model.surface_brightness(rs_1, 0 * rs_1, kwargs_light,
                                                       k=0)
             flux_r_2 = light_model.surface_brightness(rs_2, 0 * rs_2, kwargs_light,
@@ -231,23 +234,27 @@ class DynamicalModel(object):
             qobs_lum = np.append(np.ones_like(mge_1[1]) * q_1,
                                  np.ones_like(mge_2[1]) * q_2)
         else:
-            flux_r_1 = light_model.surface_brightness(rs_1, 0 * rs_1,
+            rs = np.logspace(-2.5, 2, n) * kwargs_light[0]['R_sersic']
+            flux_r = light_model.surface_brightness(rs, 0 * rs,
                                                       kwargs_light,
                                                       k=0)
 
-            mge_fit_1 = mge_fit_1d(rs_1, flux_r_1, ngauss=20, quiet=True)
+            mge_fit = mge_fit_1d(rs, flux_r, ngauss=20, quiet=True)
 
-            mge_1 = (mge_fit_1.sol[0], mge_fit_1.sol[1])
+            mge = (mge_fit.sol[0], mge_fit.sol[1])
 
-            sigma_lum = mge_1[1]
-            surf_lum = mge_1[0] / (np.sqrt(2 * np.pi) * sigma_lum)
+            sigma_lum = mge[1]
+            surf_lum = mge[0] / (np.sqrt(2 * np.pi) * sigma_lum)
 
             _, q_1 = ellipticity2phi_q(e11,
                                        e12)  # kwargs_light[0]['e1'], kwargs_light[0]['e2'])
             _, q_2 = ellipticity2phi_q(e21,
                                        e22)  # kwargs_light[1]['e1'], kwargs_light[1]['e2'])
 
-            qobs_lum = np.ones_like(mge_1[1]) * q_1
+            qobs_lum = np.ones_like(mge[1]) * q_1
+
+        if is_spherical:
+            qobs_lum = np.ones_like(qobs_lum)
 
         sorted_indices = np.argsort(sigma_lum)
         sigma_lum = sigma_lum[sorted_indices]
@@ -256,7 +263,9 @@ class DynamicalModel(object):
 
         return surf_lum, sigma_lum, qobs_lum
 
-    def get_mass_profile_mge(self, theta_e, gamma, q):
+    def get_mass_profile_mge(self, theta_e, gamma, q,
+                             is_spherical=False
+                             ):
         """
 
         """
@@ -285,7 +294,10 @@ class DynamicalModel(object):
         surf_pot = lens_cosmo.kappa2proj_mass(amps) / 1e12 # M_sun / pc^2
 
         sigma_pot = sigmas
-        qobs_pot = np.ones_like(sigmas) * q
+        if is_spherical:
+            qobs_pot = np.ones_like(sigmas)
+        else:
+            qobs_pot = np.ones_like(sigmas) * q
 
         return surf_pot, sigma_pot, qobs_pot
 
@@ -426,16 +438,20 @@ class DynamicalModel(object):
                                   supersampling_factor=5,
                                   voronoi_bins=None,
                                   om_r_scale=None,
-                                  single_slit=False
+                                  single_slit=False,
+                                  is_spherical=False
                                   ):
         """
         :param pa: positoin angle in radian
         """
-        surf_lum, sigma_lum, qobs_lum = self.get_light_profile_mge()
+        surf_lum, sigma_lum, qobs_lum = self.get_light_mge(
+            is_spherical=is_spherical)
 
-        surf_pot, sigma_pot, qobs_pot = self.get_mass_profile_mge(theta_e,
-                                                                  gamma, q)
-        if self._is_spherical_model:
+        surf_pot, sigma_pot, qobs_pot = self.get_mass_profile_mge(
+                                                  theta_e,
+                                                  gamma, q,
+                                                  is_spherical=is_spherical)
+        if is_spherical:
             qobs_lum = np.ones_like(qobs_lum)
             qobs_pot = np.ones_like(qobs_pot)
 
@@ -461,11 +477,11 @@ class DynamicalModel(object):
         mbh = 0
         distance = self.lens_cosmo.dd
 
-        if self._is_spherical_model:
+        if is_spherical:
             jam = jam_sph_rms(
                 surf_lum, sigma_lum,  # qobs_lum,
                 surf_pot, sigma_pot,  # qobs_pot,
-                # inclination,
+                # intrinsic_q,
                 mbh, distance,
                 np.sqrt(x_grid_spaxel ** 2 + y_grid_spaxel ** 2),
                 plot=False, pixsize=self.PIXEL_SIZE,
@@ -623,7 +639,7 @@ class DynamicalModel(object):
             sigma_lum, qobs_lum,
             surf_pot / (np.sqrt(2 * np.pi) * sigma_pot),
             sigma_pot, qobs_pot,
-            #inclination,
+            #intrinsic_q,
             mbh=mbh,
             #distance,
             Rbin=Rs, zbin=Rs*0,
@@ -648,15 +664,15 @@ class DynamicalModel(object):
         """
         """
         if anisotropy_model == 'Osipkov-Merritt':
-            anisotropy_type = 'OM'  # anisotropy model applied
+            anisotropy_type = 'OM'  # anisotropy_model model applied
         elif anisotropy_model == 'constant':
             anisotropy_type = 'const'
         else:
-            raise ValueError('anisotropy model {} model not '
+            raise ValueError('anisotropy_model model {} model not '
                              'supported!'.format(anisotropy_model))
 
         if single_slit:
-            kwargs_aperture = {'aperture_type': 'slit',
+            kwargs_aperture = {'aperture_type': 'aperture',
                                'length': 1.,
                                'width': 0.81,
                                'center_ra': 0.,
@@ -715,21 +731,21 @@ class DynamicalModel(object):
                                    ani_param,
                                    r_eff_multiplier=1,
                                    anisotropy_model='Osipkov-Merritt',
-                                   aperture='ifu',
+                                   aperture_type='ifu',
                                    voronoi_bins=None,
                                    supersampling_factor=5,
                                    ):
         """
 
         """
-        kwargs_lens, kwargs_lens_light, kwargs_anisotropy = self.get_lens_mass_kwargs(
+        kwargs_lens, kwargs_lens_light, kwargs_anisotropy = self.get_lenstronomy_kwargs(
             theta_E, gamma,
             ani_param,
             r_eff_multiplier=r_eff_multiplier,
             anisotropy_model=anisotropy_model
         )
 
-        if aperture == 'single_slit':
+        if aperture_type == 'single_slit':
             v_rms = kinematics_api.velocity_dispersion(
                 kwargs_lens,
                 kwargs_lens_light,
@@ -769,7 +785,7 @@ class DynamicalModel(object):
         bins[:-1] = rs - (rs[1] - rs[0])/2.
         bins[-1] = rs[-1] + (rs[1] - rs[0])/2.
 
-        kwargs_aperture = {'aperture': 'IFU_shells',
+        kwargs_aperture = {'aperture_type': 'IFU_shells',
                            'r_bins': bins,
                            }
 
@@ -784,11 +800,11 @@ class DynamicalModel(object):
             'min_integrate': 0.001}
 
         if anisotropy_model == 'Osipkov-Merritt':
-            anisotropy_type = 'OM'  # anisotropy model applied
+            anisotropy_type = 'OM'  # anisotropy_model model applied
         elif anisotropy_model == 'constant':
             anisotropy_type = 'const'
         else:
-            raise ValueError('anisotropy model {} model not '
+            raise ValueError('anisotropy_model model {} model not '
                              'supported!'.format(anisotropy_model))
 
         kinematics_api = KinematicsAPI(z_lens=self.Z_L,
@@ -812,8 +828,8 @@ class DynamicalModel(object):
                                        )
 
         kwargs_lens, kwargs_lens_light, kwargs_anisotropy = \
-            self.get_lens_mass_kwargs(theta_E, gamma, ani_param,
-                                      anisotropy_model=anisotropy_model)
+            self.get_lenstronomy_kwargs(theta_E, gamma, ani_param,
+                                        anisotropy_model=anisotropy_model)
 
         vel_dis = kinematics_api.velocity_dispersion_map(
             kwargs_lens,
@@ -830,11 +846,11 @@ class DynamicalModel(object):
 
         return vel_dis
 
-    def get_lens_mass_kwargs(self, theta_E, gamma,
-                             ani_param,
-                             anisotropy_model='Osipkov-Merritt',
-                             r_eff_multiplier=None
-                             ):
+    def get_lenstronomy_kwargs(self, theta_E, gamma,
+                               ani_param,
+                               anisotropy_model='Osipkov-Merritt',
+                               r_eff_multiplier=None
+                               ):
         """
         :param r_eff_multiplier: a factor for r_eff to account for uncertainty.
         """
@@ -848,7 +864,7 @@ class DynamicalModel(object):
         if self._do_mge_light:
             # kwargs_lens_light = self.get_double_sersic_kwargs(
             #     is_shperical=True)
-            amp, sigma, _ = self.get_light_profile_mge()
+            amp, sigma, _ = self.get_light_mge()
             kwargs_lens_light = [{
                 'amp': amp * (2 * np.pi * sigma**2),
                 'sigma': sigma,
@@ -856,19 +872,22 @@ class DynamicalModel(object):
                 'center_y': self.Y_CENTER
             }]
         else:
-            kwargs_lens_light = [{'amp': 1.,
-                                  'Rs': self.R_EFF * r_eff_multiplier / (1 + np.sqrt(2)),
-                                  'center_x': self.X_CENTER,
-                                  'center_y': self.Y_CENTER
-                                  }]
+            kwargs_lens_light = self.get_double_sersic_kwargs(
+                is_shperical=True)
+                # [
+                # {'amp': 1.,
+                #  'R_s': self.R_EFF * r_eff_multiplier / (1 + np.sqrt(2)),
+                #  'center_x': self.X_CENTER,
+                #  'center_y': self.Y_CENTER
+                #  }]
 
-        # set the anisotropy radius. r_eff is pre-computed half-light
+        # set the anisotropy_model radius. r_eff is pre-computed half-light
         # radius of the lens light
         if anisotropy_model == 'Osipkov-Merritt':
             kwargs_anisotropy = {'r_ani': ani_param}
         elif anisotropy_model == 'constant':
             kwargs_anisotropy = {'beta': ani_param}
         else:
-            raise ValueError('anisotropy model {} not recognized!'.format(anisotropy_model))
+            raise ValueError('anisotropy_model model {} not recognized!'.format(anisotropy_model))
 
         return kwargs_lens, kwargs_lens_light, kwargs_anisotropy

@@ -2,18 +2,17 @@
 #!/bin/bash
 
 name="RXJ1131_vd"
-slots=1
+slots=24
 mem=1999 # this will give you mem Megabyte per proc
-time=24 # this will give you 24 hour runtime
-hp="" #",highp"
+time=48 # this will give you 24 hour runtime
+hp=",highp" #",highp"
 
-start_index="$1"
-compute_chunk="$2"
 
-software="$3"
-ani_model="$4"
-slit="$5"
-spherical="$6"
+software="$1"
+ani_model="$2"
+slit="$3"
+spherical="$4"
+lens_model="$5"
 
 cat << EOF > ./${name}_${start_index}.cmd
 #!/bin/bash
@@ -39,7 +38,7 @@ cat << EOF > ./${name}_${start_index}.cmd
 #
 #$ -M $USER@mail
 #  Notify at beginning and end of job
-#$ -m a
+#$ -m bea
 #  Job is not rerunable
 #$ -r n
 #  Uncomment the next line to have your environment variables used by SGE
@@ -78,10 +77,10 @@ which python3
 echo $LD_LIBRARY_PATH
 
 echo "\`which mpirun\` -np ${slots} \`which python3\`  \\
-         /u/home/a/ajshajib/RXJ1131_kinematics/process_output.py $start_index $compute_chunk $software $ani_model $slit $spherical  >& /u/home/a/ajshajib/Logs/output.\$JOB_ID"
+         /u/home/a/ajshajib/RXJ1131_kinematics/run_mcmc.py $software $ani_model $slit $spherical $lens_model  >& /u/home/a/ajshajib/Logs/output.\$JOB_ID"
 
 time \`which mpirun\` -np ${slots} \`which python3\`  \\
-         /u/home/a/ajshajib/RXJ1131_kinematics/process_output.py $start_index $compute_chunk $software $ani_model $slit $spherical >& /u/home/a/ajshajib/Logs/output.\$JOB_ID
+         /u/home/a/ajshajib/RXJ1131_kinematics/run_mcmc.py $software $ani_model $slit $spherical $lens_model >& /u/home/a/ajshajib/Logs/output.\$JOB_ID
 
 
 echo ""
