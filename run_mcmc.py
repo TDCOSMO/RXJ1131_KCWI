@@ -22,9 +22,12 @@ is_cluster = True
 
 software = sys.argv[1] #'galkin', 'jampy'][1]
 anisotropy_model = sys.argv[2] #['om', 'constant', 'step'][0]
-aperture = sys.argv[3] #['single_slit', 'ifu'][1]
+aperture = sys.argv[3] #['slit', 'ifu'][1]
 is_spherical = str(sys.argv[4])
 lens_model_type = str(sys.argv[5])
+
+print(software, anisotropy_model, aperture,
+      is_spherical, lens_model_type)
 
 if is_spherical == 'True':
     is_spherical = True
@@ -38,11 +41,37 @@ if software == 'jampy':
     aperture == 'ifu'
 
 if not is_cluster:
-    base_dir = '/Users/ajshajib/Research/RXJ1131 KCWI kinematics/model_chain/'
-    out_dir = '/Users/ajshajib/Research/RXJ1131 KCWI kinematics/vel_dis_test/'
+    base_dir = '/Users/ajshajib/Research/RXJ1131_KCWI/RXJ1131_KCWI_kinematics/'
+    out_dir = '/Users/ajshajib/Research/RXJ1131_KCWI/temp/'
 else:
-    base_dir = '/home/ajshajib/RXJ1131_kinematics/' #'/u/home/a/ajshajib/RXJ1131_kinematics/'
-    out_dir = '/scratch/midway2/ajshajib/'# '/u/scratch/a/ajshajib/RXJ1131_kinematics_chains/'
+    base_dir = '/u/home/a/ajshajib/RXJ1131_kinematics/'
+    out_dir = '/u/scratch/a/ajshajib/RXJ1131_kinematics_chains/'
+
+if anisotropy_model == 'step':
+    additional_ani_param_num = 1
+    ani_param_init_mean = [1, 1]
+    ani_param_init_sigma = [0.05, 0.05]
+elif anisotropy_model == 'free_step':
+    additional_ani_param_num = 2
+    ani_param_init_mean = [1, 1, 1]
+    ani_param_init_sigma = [0.05, 0.05, 0.1]
+else:
+    additional_ani_param_num = 0
+    ani_param_init_mean = [1]
+    ani_param_init_sigma = [0.05]
+if anisotropy_model == 'om':
+    anisotropy_model = 'Osipkov-Merritt'
+
+if lens_model_type == 'powerlaw':
+    num_param = 8 + additional_ani_param_num
+elif lens_model_type == 'composite':
+    num_param = 9 + additional_ani_param_num
+else:
+    raise NotImplementedError
+
+walker_ratio = 6
+num_steps = 500
+num_walker = num_param * walker_ratio
 
 likelihood_class = KinematicLikelihood(lens_model_type=lens_model_type,
                                        software=software,
@@ -53,17 +82,6 @@ likelihood_class = KinematicLikelihood(lens_model_type=lens_model_type,
                                        mpi=True
                                        )
 
-if lens_model_type == 'powerlaw':
-    num_param = 8
-elif lens_model_type == 'composite':
-    num_param = 9
-else:
-    raise NotImplementedError
-
-walker_ratio = 6
-num_steps = 500
-num_walker = num_param * walker_ratio
-
 init_lens_params = np.random.multivariate_normal(
     likelihood_class.lens_model_posterior_mean,
     cov=likelihood_class.lens_model_posterior_covariance,
@@ -72,38 +90,58 @@ init_lens_params = np.random.multivariate_normal(
 init_pos = np.concatenate((
     init_lens_params,
     # lambda, ani_param, inclination (deg)
-    np.random.normal(loc=[1, 1, 90], scale=[0.1, 0.05, 5],
-                     size=(num_walker, 3))
+    np.random.normal(loc=[90, 1, *ani_param_init_mean],
+                     scale=[5, 0.05, *ani_param_init_sigma],
+                     size=(num_walker, 3+additional_ani_param_num))
 ), axis=1)
 
 
 def likelihood_function(params):
     """
-    Wrapper around the `KinematicLikelihood.log_probability` method.
+    Wrapper around the `KinematicLikelihood.get_log_probability` method.
     """
-    return likelihood_class.log_probability(params)
+    return likelihood_class.get_log_probability(params)
 
+if is_cluster:
+    with MPIPool(use_dill=True) as pool:
+        if not pool.is_master():
+            pool.wait()
+            sys.exit(0)
 
-with MPIPool(use_dill=True) as pool:
-    print(software, anisotropy_model, aperture, is_spherical, lens_model_type)
+        print(software, anisotropy_model, aperture, is_spherical, lens_model_type)
+        sampler = emcee.EnsembleSampler(num_walker,
+                                        num_param,
+                                        likelihood_function,
+                                        pool=pool
+                                        )
 
-    if not pool.is_master():
-        pool.wait()
-        sys.exit(0)
+        sampler.run_mcmc(init_pos, num_steps,
+                         progress=False)
+
+        chain = sampler.get_chain(flat=True)
+
+        np.savetxt(out_dir + 'kcwi_dynamics_chain_{}_{}_{}_{}_{}'.format(software,
+                                        aperture, anisotropy_model, is_spherical,
+                                        lens_model_type) + '.txt',
+                   chain)
+
+        print('finished computing velocity dispersions', chain.shape)
+else:
     sampler = emcee.EnsembleSampler(num_walker,
                                     num_param,
-                                    likelihood_function,
-                                    pool=pool
+                                    likelihood_class.get_log_prior
                                     )
 
     sampler.run_mcmc(init_pos, num_steps,
-                     progress=False)
+                     progress=True)
 
     chain = sampler.get_chain(flat=True)
 
     np.savetxt(out_dir + 'kcwi_dynamics_chain_{}_{}_{}_{}_{}'.format(software,
-                                    aperture, anisotropy_model, is_spherical,
-                                    lens_model_type) + '.txt',
+                                                                     aperture,
+                                                                     anisotropy_model,
+                                                                     is_spherical,
+                                                                     lens_model_type) + '.txt',
                chain)
 
     print('finished computing velocity dispersions', chain.shape)

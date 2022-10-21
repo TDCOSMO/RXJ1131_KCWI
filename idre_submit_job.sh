@@ -3,8 +3,8 @@
 
 name="RXJ1131_vd"
 slots=24
-mem=1999 # this will give you mem Megabyte per proc
-time=48 # this will give you 24 hour runtime
+mem=999 # this will give you mem Megabyte per proc
+time=24 # this will give you 24 hour runtime
 hp=",highp" #",highp"
 
 
@@ -14,7 +14,7 @@ slit="$3"
 spherical="$4"
 lens_model="$5"
 
-cat << EOF > ./${name}_${start_index}.cmd
+cat << EOF > ./${name}_${software}_${ani_model}_${slit}_${spherical}_${lens_model}.cmd
 #!/bin/bash
 #  UGE job for run_sequence.py built Thu Feb 16 09:35:24 PST 2017
 #
@@ -89,10 +89,10 @@ echo ""
 
 EOF
 
-chmod u+x ${name}_${start_index}.cmd
+chmod u+x ${name}_${software}_${ani_model}_${slit}_${spherical}_${lens_model}.cmd
 
-if [[ -x ${name}_${start_index}.cmd ]]; then
-    echo "qsub ${name}_${start_index}.cmd"
-    qsub ${name}_${start_index}.cmd
+if [[ -x ${name}_${software}_${ani_model}_${slit}_${spherical}_${lens_model}.cmd ]]; then
+    echo "qsub ${name}_${software}_${ani_model}_${slit}_${spherical}_${lens_model}.cmd"
+    qsub ${name}_${software}_${ani_model}_${slit}_${spherical}_${lens_model}.cmd
 fi
 #### submit_job.sh END #####

@@ -63,7 +63,7 @@ class DynamicalModel(object):
     I_light_2 = lambda _: np.random.normal(0.89, 0.03)
     q_light_2 = lambda _: 0.849 #np.random.normal(0.849, 0.004)
 
-    R_EFF = 1.85
+    R_EFF = 1.85 # arcsec
 
     def __init__(self,
                  mass_profile,
@@ -182,7 +182,7 @@ class DynamicalModel(object):
         raise NotImplementedError
 
     def get_light_mge(self, common_ellipticity=True,
-                      is_spherical=False
+                      is_spherical=False, set_q=None
                       ):
         """
         Get MGE of the double Sersic light profile.
@@ -193,6 +193,7 @@ class DynamicalModel(object):
         #     pass
             # will compute light profile using mge_1d() below
 
+        # get the kwargs light with circular profile for mge_1d
         kwargs_light = self.get_double_sersic_kwargs(is_shperical=True)
         e11, e12, e21, e22 = self.get_light_ellipticity_parameters()
 
@@ -207,13 +208,31 @@ class DynamicalModel(object):
 
         n = 300
 
-        if not common_ellipticity:
+        if common_ellipticity:
+            rs = np.logspace(-2.5, 2, n) * kwargs_light[0]['R_sersic']
+            # taking profile along x-axis, but doesn't matter because light
+            # has been set to spherical
+            flux_r = light_model.surface_brightness(rs, 0 * rs,
+                                                    kwargs_light)
+
+            mge_fit = mge_fit_1d(rs, flux_r, ngauss=20, quiet=True)
+
+            mge = (mge_fit.sol[0], mge_fit.sol[1])
+
+            sigma_lum = mge[1]
+            surf_lum = mge[0] / (np.sqrt(2 * np.pi) * sigma_lum)
+
+            _, q_1 = ellipticity2phi_q(e11, e12)
+            _, q_2 = ellipticity2phi_q(e21, e22)
+
+            qobs_lum = np.ones_like(sigma_lum) * q_1
+        else:
             rs_1 = np.logspace(-2.5, 2, n) * kwargs_light[0]['R_sersic']
             rs_2 = np.logspace(-2.5, 2, n) * kwargs_light[1]['R_sersic']
-            flux_r_1 = light_model.surface_brightness(rs_1, 0 * rs_1, kwargs_light,
-                                                      k=0)
-            flux_r_2 = light_model.surface_brightness(rs_2, 0 * rs_2, kwargs_light,
-                                                      k=1)
+            flux_r_1 = light_model.surface_brightness(rs_1, 0 * rs_1,
+                                                      kwargs_light, k=0)
+            flux_r_2 = light_model.surface_brightness(rs_2, 0 * rs_2,
+                                                      kwargs_light, k=1)
 
             mge_fit_1 = mge_fit_1d(rs_1, flux_r_1, ngauss=self._n_gauss,
                                    quiet=True)
@@ -226,40 +245,25 @@ class DynamicalModel(object):
             sigma_lum = np.append(mge_1[1], mge_2[1])
             surf_lum = np.append(mge_1[0], mge_2[0]) / (np.sqrt(2*np.pi)*sigma_lum)
 
-            _, q_1 = ellipticity2phi_q(e11,
-                                       e12)  # kwargs_light[0]['e1'], kwargs_light[0]['e2'])
-            _, q_2 = ellipticity2phi_q(e21,
-                                       e22)  # kwargs_light[1]['e1'], kwargs_light[1]['e2'])
+            _, q_1 = ellipticity2phi_q(e11, e12)
+            _, q_2 = ellipticity2phi_q(e21, e22)
 
             qobs_lum = np.append(np.ones_like(mge_1[1]) * q_1,
                                  np.ones_like(mge_2[1]) * q_2)
-        else:
-            rs = np.logspace(-2.5, 2, n) * kwargs_light[0]['R_sersic']
-            flux_r = light_model.surface_brightness(rs, 0 * rs,
-                                                      kwargs_light,
-                                                      k=0)
-
-            mge_fit = mge_fit_1d(rs, flux_r, ngauss=20, quiet=True)
-
-            mge = (mge_fit.sol[0], mge_fit.sol[1])
-
-            sigma_lum = mge[1]
-            surf_lum = mge[0] / (np.sqrt(2 * np.pi) * sigma_lum)
-
-            _, q_1 = ellipticity2phi_q(e11,
-                                       e12)  # kwargs_light[0]['e1'], kwargs_light[0]['e2'])
-            _, q_2 = ellipticity2phi_q(e21,
-                                       e22)  # kwargs_light[1]['e1'], kwargs_light[1]['e2'])
-
-            qobs_lum = np.ones_like(mge[1]) * q_1
 
         if is_spherical:
             qobs_lum = np.ones_like(qobs_lum)
+        elif set_q is not None:
+            qobs_lum = np.ones_like(qobs_lum) * set_q
 
         sorted_indices = np.argsort(sigma_lum)
         sigma_lum = sigma_lum[sorted_indices]
         surf_lum = surf_lum[sorted_indices]
         qobs_lum = qobs_lum[sorted_indices]
+
+        # jampy wants sigmas along semi-major axis, lenstronomy definition
+        # is along the intermediate axis, so dividing by sqrt(q)
+        sigma_lum /= np.sqrt(qobs_lum)
 
         return surf_lum, sigma_lum, qobs_lum
 
@@ -276,6 +280,7 @@ class DynamicalModel(object):
         n = 300
         r_array = np.logspace(-2.5, 2, n) * theta_e
 
+        # take spherical mass profile for mge_1d
         kwargs_lens = [{'theta_E': theta_e, 'gamma': gamma, 'e1': 0., 'e2': 0.,
                         'center_x': 0., 'center_y': 0.}]
 
@@ -294,10 +299,15 @@ class DynamicalModel(object):
         surf_pot = lens_cosmo.kappa2proj_mass(amps) / 1e12 # M_sun / pc^2
 
         sigma_pot = sigmas
+
         if is_spherical:
             qobs_pot = np.ones_like(sigmas)
         else:
             qobs_pot = np.ones_like(sigmas) * q
+
+        # jampy wants sigmas along semi-major axis, lenstronomy definition
+        # is along the intermediate axis, so dividing by sqrt(q)
+        sigma_pot /= np.sqrt(qobs_pot)
 
         return surf_pot, sigma_pot, qobs_pot
 
@@ -306,13 +316,19 @@ class DynamicalModel(object):
         """
         """
         if model == 'Osipkov-Merritt':
-            betas = sigma_lum**2 / (params**2 + sigma_lum**2)
+            betas = sigma_lum**2 / ((params * self.R_EFF)**2 + sigma_lum**2)
         elif model == 'generalized-OM':
-            betas = params[1] * sigma_lum**2 / (params[0]**2 + sigma_lum**2)
+            betas = params[1] * sigma_lum**2 / ((params[0] * self.R_EFF)**2 +
+                                                sigma_lum**2)
         elif model == 'constant':
             betas = (1 - params**2) * np.ones_like(sigma_lum)
         elif model == 'step':
             divider = 1. # arcsec
+            betas = (1 - params[0]**2) * np.ones_like(sigma_lum)
+            # betas[sigma_lum <= divider] = 1 - params[0]**2
+            betas[sigma_lum > divider] = 1 - params[1]**2
+        elif model == 'free_step':
+            divider = params[2] # arcsec
             betas = (1 - params[0]**2) * np.ones_like(sigma_lum)
             # betas[sigma_lum <= divider] = 1 - params[0]**2
             betas[sigma_lum > divider] = 1 - params[1]**2
@@ -438,22 +454,22 @@ class DynamicalModel(object):
                                   supersampling_factor=5,
                                   voronoi_bins=None,
                                   om_r_scale=None,
-                                  single_slit=False,
-                                  is_spherical=False
+                                  aperture_type='ifu',
+                                  is_spherical=False,
+                                  q_light=None
                                   ):
         """
         :param pa: positoin angle in radian
+        :param is_spherical: if True, will override any q for mass or
+        q_light given
         """
         surf_lum, sigma_lum, qobs_lum = self.get_light_mge(
-            is_spherical=is_spherical)
+            is_spherical=is_spherical, set_q=q_light)
 
         surf_pot, sigma_pot, qobs_pot = self.get_mass_profile_mge(
                                                   theta_e,
                                                   gamma, q,
                                                   is_spherical=is_spherical)
-        if is_spherical:
-            qobs_lum = np.ones_like(qobs_lum)
-            qobs_pot = np.ones_like(qobs_pot)
 
         bs = self.get_anisotropy_bs(ani_param, surf_lum, sigma_lum,
                                     model=anisotropy_model
@@ -461,7 +477,7 @@ class DynamicalModel(object):
         phi = 90 - pa #/np.pi*180.
 
         x_grid_spaxel, y_grid_spaxel, _, _ = self.get_jam_grid(phi,
-                                                        supersampling_factor=1)
+                                            supersampling_factor=1)
 
         x_grid, y_grid, x_grid_original, y_grid_original = self.get_jam_grid(
                                     phi,
@@ -477,14 +493,24 @@ class DynamicalModel(object):
         mbh = 0
         distance = self.lens_cosmo.dd
 
+        if aperture_type == 'single_slit':
+            pixel_size = 0.8
+            _x_grid_spaxel = np.array([0.])
+            _y_grid_spaxel = np.array([0.])
+            voronoi_bins = None
+        else:
+            pixel_size = self.PIXEL_SIZE
+            _x_grid_spaxel = x_grid_spaxel
+            _y_grid_spaxel = y_grid_spaxel
+
         if is_spherical:
             jam = jam_sph_rms(
                 surf_lum, sigma_lum,  # qobs_lum,
                 surf_pot, sigma_pot,  # qobs_pot,
                 # intrinsic_q,
                 mbh, distance,
-                np.sqrt(x_grid_spaxel ** 2 + y_grid_spaxel ** 2),
-                plot=False, pixsize=self.PIXEL_SIZE,
+                np.sqrt(_x_grid_spaxel ** 2 + _y_grid_spaxel ** 2),
+                plot=False, pixsize=pixel_size,
                 # self.PIXEL_SIZE/supersampling_factor,
                 # pixang=phi,
                 quiet=1,
@@ -493,7 +519,8 @@ class DynamicalModel(object):
                 # goodbins=goodbins,
                 # align='sph',
                 beta=bs if om_r_scale is None else None,
-                scale=om_r_scale,
+                scale=(om_r_scale * self.R_EFF) if om_r_scale is not None
+                else None,
                 # data=rms, errors=erms,
                 ml=1
             )[0]
@@ -502,8 +529,8 @@ class DynamicalModel(object):
                 surf_lum, sigma_lum, qobs_lum,
                 surf_pot, sigma_pot, qobs_pot,
                 inclination, mbh, distance,
-                x_grid_spaxel, y_grid_spaxel,
-                plot=False, pixsize=self.PIXEL_SIZE,
+                _x_grid_spaxel, _y_grid_spaxel,
+                plot=False, pixsize=pixel_size,
                 # self.PIXEL_SIZE/supersampling_factor,
                 pixang=phi, quiet=1,
                 sigmapsf=sigma_psf, normpsf=norm_psf,
@@ -513,6 +540,9 @@ class DynamicalModel(object):
                 beta=bs,
                 # data=rms, errors=erms,
                 ml=1).model
+
+        if aperture_type == 'single_slit':
+            return jam[0], None
 
         num_pix = int(np.sqrt(len(x_grid)))
         num_pix_spaxel = int(np.sqrt(len(x_grid_spaxel)))
@@ -672,7 +702,7 @@ class DynamicalModel(object):
                              'supported!'.format(anisotropy_model))
 
         if single_slit:
-            kwargs_aperture = {'aperture_type': 'aperture',
+            kwargs_aperture = {'aperture_type': 'slit',
                                'length': 1.,
                                'width': 0.81,
                                'center_ra': 0.,
@@ -884,9 +914,9 @@ class DynamicalModel(object):
         # set the anisotropy_model radius. r_eff is pre-computed half-light
         # radius of the lens light
         if anisotropy_model == 'Osipkov-Merritt':
-            kwargs_anisotropy = {'r_ani': ani_param}
+            kwargs_anisotropy = {'r_ani': ani_param * self.R_EFF}
         elif anisotropy_model == 'constant':
-            kwargs_anisotropy = {'beta': ani_param}
+            kwargs_anisotropy = {'beta': 1 - ani_param**2}
         else:
             raise ValueError('anisotropy_model model {} not recognized!'.format(anisotropy_model))
 
