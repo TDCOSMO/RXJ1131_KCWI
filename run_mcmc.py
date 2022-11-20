@@ -23,15 +23,15 @@ is_cluster = True
 software = sys.argv[1] #'galkin', 'jampy'][1]
 anisotropy_model = sys.argv[2] #['om', 'constant', 'step'][0]
 aperture = sys.argv[3] #['slit', 'ifu'][1]
-is_spherical = str(sys.argv[4])
-lens_model_type = str(sys.argv[5])
+sphericity = sys.argv[4]
+lens_model_type = sys.argv[5]
 
 print(software, anisotropy_model, aperture,
-      is_spherical, lens_model_type)
+      sphericity, lens_model_type)
 
-if is_spherical == 'True':
+if sphericity == 'spherical':
     is_spherical = True
-else:
+elif sphericity == 'axisymmetric':
     is_spherical = False
 
 if software == 'galkin':
@@ -102,13 +102,14 @@ def likelihood_function(params):
     """
     return likelihood_class.get_log_probability(params)
 
+
 if is_cluster:
     with MPIPool(use_dill=True) as pool:
         if not pool.is_master():
             pool.wait()
             sys.exit(0)
 
-        print(software, anisotropy_model, aperture, is_spherical, lens_model_type)
+        print(software, anisotropy_model, aperture, sphericity, lens_model_type)
         sampler = emcee.EnsembleSampler(num_walker,
                                         num_param,
                                         likelihood_function,
@@ -120,7 +121,8 @@ if is_cluster:
 
         chain = sampler.get_chain(flat=True)
 
-        np.savetxt(out_dir + 'kcwi_dynamics_chain_{}_{}_{}_{}_{}'.format(software,
+        np.savetxt(out_dir + 'kcwi_dynamics_chain_{}_{}_{}_{}_{}_nl'.format(
+            software,
                                         aperture, anisotropy_model, is_spherical,
                                         lens_model_type) + '.txt',
                    chain)
@@ -137,11 +139,8 @@ else:
 
     chain = sampler.get_chain(flat=True)
 
-    np.savetxt(out_dir + 'kcwi_dynamics_chain_{}_{}_{}_{}_{}'.format(software,
-                                                                     aperture,
-                                                                     anisotropy_model,
-                                                                     is_spherical,
-                                                                     lens_model_type) + '.txt',
-               chain)
+    np.savetxt(out_dir+'kcwi_dynamics_chain_{}_{}_{}_{}_{}_nl.txt'.format(
+        software, aperture, anisotropy_model, sphericity, lens_model_type),
+        chain)
 
     print('finished computing velocity dispersions', chain.shape)
