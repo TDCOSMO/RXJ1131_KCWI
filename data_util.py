@@ -2,12 +2,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-def load_bin_mapping(target_snr_per_bin=15, plot=False):
+def load_bin_mapping(target_snr_per_bin=15, plot=False, url=None):
     """
     Return vornoi bin mapping. -1 is masked pixel. Unmasked pixel start counting from 0.
     """
-    url = "./data_products/voronoi_2d_binning_KCWI_RXJ1131_icubes_mosaic_0" \
-          ".1457_targetSN_{}_output.txt".format(target_snr_per_bin)
+    if url is None:
+        url = "./data_products/voronoi_2d_binning_KCWI_RXJ1131_icubes_mosaic_0" \
+              ".1457_targetSN_{}_output.txt".format(target_snr_per_bin)
         
     bins = np.loadtxt(url)
     # bins -= 1 # unbinned pixels set to -1

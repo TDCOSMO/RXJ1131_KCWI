@@ -3,8 +3,8 @@
 
 name="RXJ1131_vd"
 slots=24
-mem=999 # this will give you mem Megabyte per proc
-time=24 # this will give you 24 hour runtime
+mem=999 # this will give you "mem" Megabyte per proc
+time=48 # this will give you "time" hours runtime
 hp=",highp" #",highp"
 
 
@@ -13,8 +13,10 @@ ani_model="$2"
 slit="$3"
 spherical="$4"
 lens_model="$5"
+snr="$6"
+shape="$7"
 
-cat << EOF > ./${name}_${software}_${ani_model}_${slit}_${spherical}_${lens_model}.cmd
+cat << EOF > ./${name}_${software}_${ani_model}_${slit}_${spherical}_${lens_model}_${snr}_${shape}.cmd
 #!/bin/bash
 #  UGE job for run_sequence.py built Thu Feb 16 09:35:24 PST 2017
 #
@@ -33,7 +35,7 @@ cat << EOF > ./${name}_${software}_${ani_model}_${slit}_${spherical}_${lens_mode
 #  program output  = Specified by user program
 #  Parallelism:  $slots-way parallel
 #  Resources requested
-#$ -pe shared $slots
+#$ -pe dc* $slots
 #$ -l h_data=${mem}M,h_rt=${time}:00:00$hp
 #
 #$ -M $USER@mail
@@ -77,10 +79,10 @@ which python3
 echo $LD_LIBRARY_PATH
 
 echo "\`which mpirun\` -np ${slots} \`which python3\`  \\
-         /u/home/a/ajshajib/RXJ1131_kinematics/run_mcmc.py $software $ani_model $slit $spherical $lens_model  >& /u/home/a/ajshajib/Logs/output.\$JOB_ID"
+         /u/home/a/ajshajib/RXJ1131_kinematics/run_mcmc.py $software $ani_model $slit $spherical $lens_model $snr $shape >& /u/home/a/ajshajib/Logs/output.\$JOB_ID"
 
 time \`which mpirun\` -np ${slots} \`which python3\`  \\
-         /u/home/a/ajshajib/RXJ1131_kinematics/run_mcmc.py $software $ani_model $slit $spherical $lens_model >& /u/home/a/ajshajib/Logs/output.\$JOB_ID
+         /u/home/a/ajshajib/RXJ1131_kinematics/run_mcmc.py $software $ani_model $slit $spherical $lens_model $snr $shape >& /u/home/a/ajshajib/Logs/output.\$JOB_ID
 
 
 echo ""
@@ -89,10 +91,10 @@ echo ""
 
 EOF
 
-chmod u+x ${name}_${software}_${ani_model}_${slit}_${spherical}_${lens_model}.cmd
+chmod u+x ${name}_${software}_${ani_model}_${slit}_${spherical}_${lens_model}_${snr}_${shape}.cmd
 
-if [[ -x ${name}_${software}_${ani_model}_${slit}_${spherical}_${lens_model}.cmd ]]; then
-    echo "qsub ${name}_${software}_${ani_model}_${slit}_${spherical}_${lens_model}.cmd"
-    qsub ${name}_${software}_${ani_model}_${slit}_${spherical}_${lens_model}.cmd
+if [[ -x ${name}_${software}_${ani_model}_${slit}_${spherical}_${lens_model}_${snr}_${shape}.cmd ]]; then
+    echo "qsub ${name}_${software}_${ani_model}_${slit}_${spherical}_${lens_model}_${snr}_${shape}.cmd"
+    qsub ${name}_${software}_${ani_model}_${slit}_${spherical}_${lens_model}_${snr}_${shape}.cmd
 fi
 #### submit_job.sh END #####

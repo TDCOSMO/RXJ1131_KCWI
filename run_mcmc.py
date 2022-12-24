@@ -25,6 +25,8 @@ anisotropy_model = sys.argv[2] #['om', 'constant', 'step'][0]
 aperture = sys.argv[3] #['slit', 'ifu'][1]
 sphericity = sys.argv[4]
 lens_model_type = sys.argv[5]
+snr = int(sys.argv[6])
+shape = sys.argv[7]
 
 print(software, anisotropy_model, aperture,
       sphericity, lens_model_type)
@@ -53,14 +55,17 @@ if anisotropy_model == 'step':
     ani_param_init_sigma = [0.05, 0.05]
 elif anisotropy_model == 'free_step':
     additional_ani_param_num = 2
-    ani_param_init_mean = [1, 1, 1]
+    ani_param_init_mean = [1., 1, 1.91]
     ani_param_init_sigma = [0.05, 0.05, 0.1]
 else:
     additional_ani_param_num = 0
     ani_param_init_mean = [1]
     ani_param_init_sigma = [0.05]
+
 if anisotropy_model == 'om':
-    anisotropy_model = 'Osipkov-Merritt'
+    anisotropy_type = 'Osipkov-Merritt'
+else:
+    anisotropy_type = anisotropy_model
 
 if lens_model_type == 'powerlaw':
     num_param = 8 + additional_ani_param_num
@@ -70,16 +75,22 @@ else:
     raise NotImplementedError
 
 walker_ratio = 6
-num_steps = 500
+
+if anisotropy_model in ['step', 'free_step']:
+    num_steps = 1250
+else:
+    num_steps = 750
+
 num_walker = num_param * walker_ratio
 
 likelihood_class = KinematicLikelihood(lens_model_type=lens_model_type,
                                        software=software,
-                                       anisotropy_model=anisotropy_model,
+                                       anisotropy_model=anisotropy_type,
                                        aperture=aperture,
-                                       snr_per_bin=15,
+                                       snr_per_bin=snr,
                                        is_spherical=is_spherical,
-                                       mpi=True
+                                       mpi=True,
+                                       shape=shape
                                        )
 
 init_lens_params = np.random.multivariate_normal(
@@ -102,7 +113,6 @@ def likelihood_function(params):
     """
     return likelihood_class.get_log_probability(params)
 
-
 if is_cluster:
     with MPIPool(use_dill=True) as pool:
         if not pool.is_master():
@@ -120,12 +130,19 @@ if is_cluster:
                          progress=False)
 
         chain = sampler.get_chain(flat=True)
+        likelihood_chain = sampler.get_log_prob(flat=True)
 
-        np.savetxt(out_dir + 'kcwi_dynamics_chain_{}_{}_{}_{}_{}_nl'.format(
-            software,
-                                        aperture, anisotropy_model, is_spherical,
-                                        lens_model_type) + '.txt',
+        np.savetxt(out_dir + 'kcwi_dynamics_chain_{}_{}_{}_{}_{}_{}_{}.txt'.format(
+                                        software,
+                                        aperture, anisotropy_model, sphericity,
+                                        lens_model_type, snr, shape),
                    chain)
+        np.savetxt(
+            out_dir + 'kcwi_dynamics_chain_{}_{}_{}_{}_{}_{}_{}_logL.txt'.format(
+                software,
+                aperture, anisotropy_model, sphericity,
+                lens_model_type, snr, shape),
+            likelihood_chain)
 
         print('finished computing velocity dispersions', chain.shape)
 else:
@@ -138,9 +155,15 @@ else:
                      progress=True)
 
     chain = sampler.get_chain(flat=True)
+    likelihood_chain = sampler.get_log_prob(flat=True)
 
-    np.savetxt(out_dir+'kcwi_dynamics_chain_{}_{}_{}_{}_{}_nl.txt'.format(
-        software, aperture, anisotropy_model, sphericity, lens_model_type),
+    np.savetxt(out_dir+'kcwi_dynamics_chain_{}_{}_{}_{}_{}_{}_{}.txt'.format(
+        software, aperture, anisotropy_model, sphericity, lens_model_type,
+        snr, shape),
         chain)
+    np.savetxt(out_dir + 'kcwi_dynamics_chain_{}_{}_{}_{}_{}_{}_{}_logL.txt'.format(
+        software, aperture, anisotropy_model, sphericity, lens_model_type,
+        snr, shape),
+        likelihood_chain)
 
     print('finished computing velocity dispersions', chain.shape)

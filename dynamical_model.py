@@ -109,13 +109,12 @@ class DynamicalModel(object):
             phi, q1, q2 = params
 
         phi_radian = (90. - phi) / 180. * np.pi
-
-        #q1, phi_radian = self.q_light_1(), (90. - self.phi_light_1(
-        # ))/180.*np.pi
+        # q1, phi = self.q_light_1(), (90. - self.phi_light_1()) / 180. * np.pi
         e11, e12 = phi_q2_ellipticity(phi_radian, q1)
 
-        #q2 = self.q_light_2()
+        # q2 = self.q_light_2()
         e21, e22 = phi_q2_ellipticity(phi_radian, q2)
+
         return e11, e12, e21, e22
 
     def get_double_sersic_kwargs(self, is_shperical=True, params=None):
