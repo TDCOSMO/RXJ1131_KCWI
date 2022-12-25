@@ -6,4 +6,8 @@ test_notebooks/.ipynb_checkpoints/*
 __pycache__/*
 __pycache__/*.pyc
 __pycache__/*
-
+temp/*
+data_products/hst_imaging_and_lens_model_products/RXJ1131_F814W_drz_err.fits
+data_products/hst_imaging_and_lens_model_products/RXJ1131_F814W_drz_sci.fits
+test_notebooks/*
+.idea/*
