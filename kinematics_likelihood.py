@@ -295,7 +295,7 @@ class KinematicLikelihood(object):
         """
         """
         if self.lens_model_type == 'powerlaw':
-            theta_e, gamma, q, pa, D_dt, inclination, lamda, *ani_param = params
+            theta_e, gamma, q, D_dt, inclination, lamda, *ani_param = params
 
             if not 1.0 < theta_e < 2.2:
                 return -np.inf
@@ -303,11 +303,11 @@ class KinematicLikelihood(object):
             if not 1.5 < gamma < 2.5:
                 return -np.inf
 
-            lens_model_params = np.array([theta_e, gamma, q, pa, D_dt])
+            lens_model_params = np.array([theta_e, gamma, q, D_dt])
         elif self.lens_model_type == 'composite':
-            kappa_s, r_s, m2l, q, pa, D_dt, inclination, lamda, *ani_param = \
+            kappa_s, r_s, m2l, q, D_dt, inclination, lamda, *ani_param = \
                 params
-            lens_model_params = np.array([kappa_s, r_s, m2l, q, pa, D_dt])
+            lens_model_params = np.array([kappa_s, r_s, m2l, q, D_dt])
         else:
             raise NotImplementedError
 
@@ -317,8 +317,8 @@ class KinematicLikelihood(object):
         if not 0.5 < q < 0.99:
             return -np.inf
 
-        if not 70 < pa < 170:
-            return -np.inf
+        # if not 70 < pa < 170:
+        #     return -np.inf
 
         if inclination > 90:
             inclination = 180 - inclination
@@ -355,10 +355,10 @@ class KinematicLikelihood(object):
         """
         """
         if self.lens_model_type == 'powerlaw':
-            theta_e, gamma, q, pa, D_dt, inclination, lamda, *ani_param = params
+            theta_e, gamma, q, D_dt, inclination, lamda, *ani_param = params
             lens_params = [theta_e, gamma, q]
         elif self.lens_model_type == 'composite':
-            kappa_s, r_s, m2l, q, pa, D_dt, inclination, lamda, *ani_param = \
+            kappa_s, r_s, m2l, q, D_dt, inclination, lamda, *ani_param = \
                 params
             lens_params = [kappa_s, r_s, m2l, q]
         else:
@@ -369,7 +369,7 @@ class KinematicLikelihood(object):
 
         if self.software == 'jampy':
             v_rms, _ = self.dynamical_model.compute_jampy_v_rms_model(
-                lens_params, ani_param, self.dynamical_model.phi_light_1(),
+                lens_params, ani_param,
                 inclination,
                 anisotropy_model=self.anisotropy_model,
                 voronoi_bins=self.voronoi_bin_mapping,

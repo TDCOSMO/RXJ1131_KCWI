@@ -2,7 +2,7 @@
 For testing on the local machine, run from command line:
 
 ```
-python run_mcmc.py <run_id> powerlaw 0 5
+python run_mcmc.py jampy constant ifu axisymmetric powerlaw 15 oblate
 ```
 
 This will compute velocity dispersion for the first 5 samples from the chain
@@ -15,7 +15,7 @@ from schwimmbad import MPIPool
 from kinematics_likelihood import KinematicLikelihood
 import emcee
 
-is_cluster = True
+is_cluster = False
 
 #run_name = str(sys.argv[1])
 #run_type = str(sys.argv[2])
@@ -68,9 +68,9 @@ else:
     anisotropy_type = anisotropy_model
 
 if lens_model_type == 'powerlaw':
-    num_param = 8 + additional_ani_param_num
+    num_param = 7 + additional_ani_param_num
 elif lens_model_type == 'composite':
-    num_param = 9 + additional_ani_param_num
+    num_param = 8 + additional_ani_param_num
 else:
     raise NotImplementedError
 
@@ -146,6 +146,9 @@ if is_cluster:
 
         print('finished computing velocity dispersions', chain.shape)
 else:
+    walker_ratio = 2
+    num_steps = 2
+
     sampler = emcee.EnsembleSampler(num_walker,
                                     num_param,
                                     likelihood_class.get_log_prior

@@ -109,6 +109,7 @@ class DynamicalModel(object):
             phi, q1, q2 = params
 
         phi_radian = (90. - phi) / 180. * np.pi
+
         # q1, phi = self.q_light_1(), (90. - self.phi_light_1()) / 180. * np.pi
         e11, e12 = phi_q2_ellipticity(phi_radian, q1)
 
@@ -272,7 +273,7 @@ class DynamicalModel(object):
         # is along the intermediate axis, so dividing by sqrt(q)
         sigma_lum /= np.sqrt(qobs_lum)
 
-        return surf_lum, sigma_lum, qobs_lum
+        return surf_lum, sigma_lum, qobs_lum, params[3]
 
     def get_mass_mge(self, lens_params,
                      is_spherical=False
@@ -553,7 +554,7 @@ class DynamicalModel(object):
 
     def compute_jampy_v_rms_model(self, lens_params,
                                   ani_param,
-                                  pa=121,
+                                  #pa=121,
                                   inclination=90,
                                   anisotropy_model='Oskipkov-Merritt',
                                   do_convolve=True,
@@ -582,7 +583,7 @@ class DynamicalModel(object):
         # else:
         #     raise ValueError('Other mass models are not supported yet!')
 
-        surf_lum, sigma_lum, qobs_lum = self.get_light_mge(
+        surf_lum, sigma_lum, qobs_lum, pa = self.get_light_mge(
             is_spherical=is_spherical, set_q=q_light)
 
         surf_pot, sigma_pot, qobs_pot = self.get_mass_mge(
