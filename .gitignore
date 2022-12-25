@@ -11,3 +11,5 @@ data_products/hst_imaging_and_lens_model_products/RXJ1131_F814W_drz_err.fits
 data_products/hst_imaging_and_lens_model_products/RXJ1131_F814W_drz_sci.fits
 test_notebooks/*
 .idea/*
+kinematic_extraction/.ipynb_checkpoints/*
+kinematic_extraction/__pycache__/*

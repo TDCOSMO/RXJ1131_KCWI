@@ -275,7 +275,7 @@ class DynamicalModel(object):
 
         return surf_lum, sigma_lum, qobs_lum, params[3]
 
-    def get_mass_mge(self, lens_params,
+    def get_mass_mge(self, lens_params, lamda=1,
                      is_spherical=False
                      ):
         """
@@ -300,6 +300,8 @@ class DynamicalModel(object):
                  'center_x': 0., 'center_y': 0.}]
 
             mass_r = lens_model.kappa(r_array, r_array * 0, kwargs_lens)
+
+            mass_r = lamda * mass_r + 1 - lamda
 
             # amps, sigmas, _ = mge.mge_1d(r_array, mass_r, N=20)
             mass_mge = mge_fit_1d(r_array, mass_r, ngauss=self._n_gauss,
@@ -368,6 +370,10 @@ class DynamicalModel(object):
             #                                         kwargs_baryon_2)
 
             # amps, sigmas, _ = mge.mge_1d(r_array, mass_r, N=20)
+            mass_nfw = lamda * mass_nfw + 1 - lamda
+            mass_baryon_1 = lamda * mass_baryon_1 + 1 - lamda
+            mass_baryon_2 = lamda * mass_baryon_2 + 1 - lamda
+
             mass_mge_nfw = mge_fit_1d(r_array, mass_nfw, ngauss=self._n_gauss,
                                       quiet=True,
                                       plot=False)
@@ -392,7 +398,7 @@ class DynamicalModel(object):
                 np.ones_like(mass_mge_baryon_1.sol[0]) * 0.882587,
                 np.ones_like(mass_mge_baryon_2.sol[0]) * 0.847040))
 
-        surf_pot = lens_cosmo.kappa2proj_mass(amps) / 1e12  # M_sun / pc^2
+        surf_pot = amps # lens_cosmo.kappa2proj_mass(amps) / 1e12 # M_sun/pc^2
         sigma_pot = sigmas
 
         if is_spherical:
@@ -553,6 +559,7 @@ class DynamicalModel(object):
         return model_image
 
     def compute_jampy_v_rms_model(self, lens_params,
+                                  cosmo_params,
                                   ani_param,
                                   #pa=121,
                                   inclination=90,
@@ -586,9 +593,15 @@ class DynamicalModel(object):
         surf_lum, sigma_lum, qobs_lum, pa = self.get_light_mge(
             is_spherical=is_spherical, set_q=q_light)
 
+        lamda, D_dt, D_d = cosmo_params
+
         surf_pot, sigma_pot, qobs_pot = self.get_mass_mge(
-            lens_params,
+            lens_params, lamda,
             is_spherical=is_spherical)
+
+        c2_4piG = 1.6624541593797972e+6
+        sigma_crit = c2_4piG * D_dt / lamda / D_d**2 / (1 + self.Z_L)
+        surf_pot *= sigma_crit # from convergence to M_sun / pc^2
 
         bs = self.get_anisotropy_bs(ani_param, surf_lum, sigma_lum,
                                     model=anisotropy_model
@@ -614,7 +627,7 @@ class DynamicalModel(object):
         norm_psf = 1.
 
         mbh = 0
-        distance = self.lens_cosmo.dd
+        distance = D_d #self.lens_cosmo.dd
 
         if aperture_type == 'single_slit':
             pixel_size = 0.01

@@ -55,8 +55,8 @@ if anisotropy_model == 'step':
     ani_param_init_sigma = [0.05, 0.05]
 elif anisotropy_model == 'free_step':
     additional_ani_param_num = 2
-    ani_param_init_mean = [1., 1, 1.91]
-    ani_param_init_sigma = [0.05, 0.05, 0.1]
+    ani_param_init_mean = [1., 1, 30]
+    ani_param_init_sigma = [0.05, 0.05, 10]
 else:
     additional_ani_param_num = 0
     ani_param_init_mean = [1]
@@ -68,9 +68,9 @@ else:
     anisotropy_type = anisotropy_model
 
 if lens_model_type == 'powerlaw':
-    num_param = 7 + additional_ani_param_num
-elif lens_model_type == 'composite':
     num_param = 8 + additional_ani_param_num
+elif lens_model_type == 'composite':
+    num_param = 9 + additional_ani_param_num
 else:
     raise NotImplementedError
 
@@ -101,9 +101,9 @@ init_lens_params = np.random.multivariate_normal(
 init_pos = np.concatenate((
     init_lens_params,
     # lambda, ani_param, inclination (deg)
-    np.random.normal(loc=[90, 1, *ani_param_init_mean],
-                     scale=[5, 0.05, *ani_param_init_sigma],
-                     size=(num_walker, 3+additional_ani_param_num))
+    np.random.normal(loc=[900, 90, 1, *ani_param_init_mean],
+                     scale=[10, 5, 0.05, *ani_param_init_sigma],
+                     size=(num_walker, 4+additional_ani_param_num))
 ), axis=1)
 
 

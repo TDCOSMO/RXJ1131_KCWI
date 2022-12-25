@@ -295,7 +295,8 @@ class KinematicLikelihood(object):
         """
         """
         if self.lens_model_type == 'powerlaw':
-            theta_e, gamma, q, D_dt, inclination, lamda, *ani_param = params
+            theta_e, gamma, q, D_dt, D_d, inclination, lamda, *ani_param = \
+                params
 
             if not 1.0 < theta_e < 2.2:
                 return -np.inf
@@ -305,7 +306,7 @@ class KinematicLikelihood(object):
 
             lens_model_params = np.array([theta_e, gamma, q, D_dt])
         elif self.lens_model_type == 'composite':
-            kappa_s, r_s, m2l, q, D_dt, inclination, lamda, *ani_param = \
+            kappa_s, r_s, m2l, q, D_dt, D_d, inclination, lamda, *ani_param = \
                 params
             lens_model_params = np.array([kappa_s, r_s, m2l, q, D_dt])
         else:
@@ -355,21 +356,26 @@ class KinematicLikelihood(object):
         """
         """
         if self.lens_model_type == 'powerlaw':
-            theta_e, gamma, q, D_dt, inclination, lamda, *ani_param = params
+            theta_e, gamma, q, D_dt, D_d, inclination, lamda, *ani_param = \
+                params
             lens_params = [theta_e, gamma, q]
         elif self.lens_model_type == 'composite':
-            kappa_s, r_s, m2l, q, D_dt, inclination, lamda, *ani_param = \
+            kappa_s, r_s, m2l, q, D_dt, D_d, inclination, lamda, *ani_param = \
                 params
             lens_params = [kappa_s, r_s, m2l, q]
         else:
             raise ValueError('lens model type not recognized!')
+
+        cosmo_params = [lamda, D_dt, D_d]
 
         if len(ani_param) == 1:
             ani_param = ani_param[0]
 
         if self.software == 'jampy':
             v_rms, _ = self.dynamical_model.compute_jampy_v_rms_model(
-                lens_params, ani_param,
+                lens_params,
+                cosmo_params,
+                ani_param,
                 inclination,
                 anisotropy_model=self.anisotropy_model,
                 voronoi_bins=self.voronoi_bin_mapping,
