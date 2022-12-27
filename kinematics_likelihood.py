@@ -268,21 +268,23 @@ class KinematicLikelihood(object):
     def get_anisotropy_prior(self, ani_param):
         """
         """
+        low = 0.7 # 0.87
+        hi = 1.23 # 1.12
         if self.anisotropy_model == 'constant':
-            if not 0.87 < ani_param < 1.12:
+            if not low < ani_param < hi:
                 return -np.inf
         elif self.anisotropy_model == 'Osipkov-Merritt':
             if not 0.1 < ani_param < 5.:
                 return -np.inf
         elif self.anisotropy_model == 'step':
-            if not 0.87 < ani_param[0] < 1.12:
+            if not low < ani_param[0] < hi:
                 return -np.inf
-            if not 0.87 < ani_param[1] < 1.12:
+            if not low < ani_param[1] < hi:
                 return -np.inf
         elif self.anisotropy_model == 'free_step':
-            if not 0.87 < ani_param[0] < 1.12:
+            if not low < ani_param[0] < hi:
                 return -np.inf
-            if not 0.87 < ani_param[1] < 1.12:
+            if not low < ani_param[1] < hi:
                 return -np.inf
             if not 0.5*1.91 < ani_param[2] < 100.:
                 return -np.inf
@@ -304,11 +306,11 @@ class KinematicLikelihood(object):
             if not 1.5 < gamma < 2.5:
                 return -np.inf
 
-            lens_model_params = np.array([theta_e, gamma, q, D_dt])
+            lens_model_params = np.array([theta_e, gamma, q, D_dt*lamda])
         elif self.lens_model_type == 'composite':
             kappa_s, r_s, m2l, q, D_dt, D_d, inclination, lamda, *ani_param = \
                 params
-            lens_model_params = np.array([kappa_s, r_s, m2l, q, D_dt])
+            lens_model_params = np.array([kappa_s, r_s, m2l, q, D_dt*lamda])
         else:
             raise NotImplementedError
 
@@ -323,6 +325,9 @@ class KinematicLikelihood(object):
 
         if inclination > 90:
             inclination = 180 - inclination
+
+        if not 0 < inclination < 180:
+            return -np.inf
 
         if self.lens_model_type == 'powerlaw':
             intrinsic_q = np.sqrt(q**2 - np.cos(inclination*np.pi/180.)**2) \
@@ -386,6 +391,8 @@ class KinematicLikelihood(object):
                 shape=self.shape
             )
         elif self.software == 'galkin':
+            raise ValueError('Galkin is not compatible anymore with the '
+                             'sampled parameter set!')
             v_rms, _ = self.dynamical_model.compute_galkin_v_rms_model(
                 self.galkin_kinematics_api,
                 lens_params, ani_param,
@@ -397,7 +404,7 @@ class KinematicLikelihood(object):
         else:
             raise ValueError('Software not recognized!')
 
-        return np.sqrt(lamda) * v_rms
+        return v_rms
 
     def get_log_likelihood(self, params):
         """

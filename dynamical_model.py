@@ -371,6 +371,8 @@ class DynamicalModel(object):
 
             # amps, sigmas, _ = mge.mge_1d(r_array, mass_r, N=20)
             mass_nfw = lamda * mass_nfw + 1 - lamda
+            # we already know baryon surface density profile, so not doing
+            # MST on them.
             mass_baryon_1 = lamda * mass_baryon_1 + 1 - lamda
             mass_baryon_2 = lamda * mass_baryon_2 + 1 - lamda
 
@@ -600,7 +602,9 @@ class DynamicalModel(object):
             is_spherical=is_spherical)
 
         c2_4piG = 1.6624541593797972e+6
-        sigma_crit = c2_4piG * D_dt / lamda / D_d**2 / (1 + self.Z_L)
+        # the sampled/passed D_dt is true D_dt, so not needed to divide by
+        # lamda
+        sigma_crit = c2_4piG * D_dt / D_d**2 / (1 + self.Z_L)
         surf_pot *= sigma_crit # from convergence to M_sun / pc^2
 
         bs = self.get_anisotropy_bs(ani_param, surf_lum, sigma_lum,

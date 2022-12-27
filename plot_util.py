@@ -18,32 +18,32 @@ pf.set_fontscale(2.)
 
 walker_ratio = 6
 
-labels_pl = ['theta_E', 'gamma', 'q', 'pa', 'D_dt',
+labels_pl = ['theta_E', 'gamma', 'q', 'D_dt', 'D_d',
              'inclination', 'lamda',
              'ani_param_1',
              'ani_param_2', 'ani_param_3']  # [:samples_mcmc.shape[1]]
 latex_labels_pl = ['{\\theta}_{\\rm E} \ (^{\prime\prime})',
                    '{\\gamma}',
-                   'q', '{\\rm PA} {\ (^{\circ})}',
-                   #'D_{\\Delta t}^{\prime}\ ({\\rm Mpc})',
+                   'q', #'{\\rm PA} {\ (^{\circ})}',
+                   'D_{\\Delta t}^{\prime}\ ({\\rm Mpc})',
                    '{\\rm blinded}\ D_{\\rm d}',
                    'i {\ (^{\circ})}',
-                   '{f_{\\rm dyn}}',
+                   '{\\lambda}',
                    'a_{\\rm ani,1}', 'a_{\\rm ani,2}', 'a_{\\rm ani,3}'
                    ]
 
-labels_composite = ['kappa_s', 'r_scale', 'M/L', 'q', 'pa', 'D_dt',
+labels_composite = ['kappa_s', 'r_scale', 'M/L', 'q', 'D_dt', 'D_d',
                     'inclination', 'lamda', 'ani_param_1',
                     'ani_param_2', 'ani_param_3']  # [:samples_mcmc.shape[1]]
 
 latex_labels_composite = ['{\\kappa}_{\\rm s}',
                           'r_{\\rm scale}\ (^{\prime\prime})',
                           'M/L\ (M_{\\odot}/L_{\\odot})',
-                          'q', '{\\rm PA} {\ (^{\circ})}',
-                          #'D_{\\Delta t}^{\prime}\ ({\\rm Mpc})',
+                          'q', #'{\\rm PA} {\ (^{\circ})}',
+                          'D_{\\Delta t}^{\prime}\ ({\\rm Mpc})',
                           '{\\rm blinded}\ D_{\\rm d}',
                           'i {\ (^{\circ})}',
-                          '{f_{\\rm dyn}}',
+                          '{\\lambda}',
                           'a_{\\rm ani,1}', 'a_{\\rm ani,2}', 'a_{\\rm ani,3}'
                           ]
 
@@ -112,7 +112,7 @@ def load_likelihoods(software, aperture_type, anisotropy_model, is_spherical,
     )
 
 
-def get_chain(software, aperture_type, anisotropy_model, is_spherical,
+def get_original_chain(software, aperture_type, anisotropy_model, is_spherical,
               lens_model_type='powerlaw', snr=15, shape='oblate'):
     """
     Get dynamics chain in right shape.
@@ -136,11 +136,23 @@ def get_chain(software, aperture_type, anisotropy_model, is_spherical,
     return chain
 
 
+def get_chain(software, aperture_type, anisotropy_model, is_spherical,
+              lens_model_type='powerlaw', snr=15, shape='oblate', burnin=-100):
+    """
+    """
+    chain = get_original_chain(software, aperture_type, anisotropy_model,
+                               is_spherical, lens_model_type, snr=snr,
+                               shape=shape)
+    chain = chain[:, burnin:, :].reshape((-1, chain.shape[-1]))
+    
+    return chain
+
+
 def plot_mcmc_trace(software, aperture_type, anisotropy_model, is_spherical,
                     lens_model_type='powerlaw', snr=15, shape='oblate'):
     """
     """
-    chain = get_chain(software, aperture_type, anisotropy_model, is_spherical,
+    chain = get_original_chain(software, aperture_type, anisotropy_model, is_spherical,
                       lens_model_type, snr, shape)
 
     n_params = chain.shape[2]
@@ -211,11 +223,10 @@ def plot_corner(software, aperture_type, anisotropy_model, is_spherical,
         latex_labels = latex_labels_composite
 
     chain = get_chain(software, aperture_type, anisotropy_model, is_spherical,
-                      lens_model_type, snr, shape,
-                      burnin=burnin
+                      lens_model_type, snr, shape, burnin=burnin
                       )
 
-    fig = corner.corner(chain[:, burnin:, :].reshape((-1, chain.shape[-1])),
+    fig = corner.corner(chain,
                         color=color, labels=labels, scale_hist=False, fig=fig,
                         );
     if lens_model_type == 'powerlaw':
@@ -253,11 +264,11 @@ def get_getdist_samples(software, aperture_type, anisotropy_model,
 
     if oblate_fraction is not None:
         chain_obl = get_chain(software, aperture_type, anisotropy_model, is_spherical,
-                      lens_model_type, snr, 'oblate')
-        chain_obl = chain_obl[:, burnin:, :].reshape((-1, chain_obl.shape[-1]))
+                      lens_model_type, snr, 'oblate', burnin=burnin)
+#         chain_obl = chain_obl[:, burnin:, :].reshape((-1, chain_obl.shape[-1]))
         chain_pro = get_chain(software, aperture_type, anisotropy_model, is_spherical,
-                      lens_model_type, snr, 'prolate')
-        chain_pro = chain_pro[:, burnin:, :].reshape((-1, chain_pro.shape[-1]))
+                      lens_model_type, snr, 'prolate', burnin=burnin)
+#         chain_pro = chain_pro[:, burnin:, :].reshape((-1, chain_pro.shape[-1]))
 
         indices = np.arange(chain_pro.shape[0])
         chain = np.concatenate(
@@ -269,9 +280,9 @@ def get_getdist_samples(software, aperture_type, anisotropy_model,
         print(chain_obl.shape, chain_pro.shape, chain.shape, oblate_fraction)
     else:
         chain = get_chain(software, aperture_type, anisotropy_model, is_spherical,
-                          lens_model_type, snr, shape)
+                          lens_model_type, snr, shape, burnin=burnin)
 
-        chain = chain[:, burnin:, :].reshape((-1, chain.shape[-1]))
+#         chain = chain[:, burnin:, :].reshape((-1, chain.shape[-1]))
 
     if lens_model_type == 'powerlaw':
         d_index = 4
