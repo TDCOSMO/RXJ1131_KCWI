@@ -58,6 +58,15 @@ D_s = cosmo.angular_diameter_distance(Z_S).value
 def get_init_pos(software, aperture_type, anisotropy_model, is_spherical,
                  lens_model_type='powerlaw', snr=15, shape='oblate'):
     """
+    Get initial position of walkers
+    :param software: 'jampy' or 'galkin'
+    :param aperture_type: 'ifu' or 'single_slit'
+    :param anisotropy_model: 'consant', 'step', 'free_step', 'Osipkov-Merritt'
+    :param is_spherical: True or False
+    :param lens_model_type: 'powerlaw' or 'composite'
+    :param snr: signal-to-noise ratio per pixel in Voronoi bins
+    :param shape: 'oblate' or 'prolate'
+    :return: initial position of walkers
     """
     likelihood_class = KinematicLikelihood(lens_model_type=lens_model_type,
                                            software=software,
@@ -91,6 +100,15 @@ def get_init_pos(software, aperture_type, anisotropy_model, is_spherical,
 def load_samples_mcmc(software, aperture_type, anisotropy_model, is_spherical,
             lens_model_type='powerlaw', snr=15, shape='oblate'):
     """
+    Load MCMC samples from file
+    :param software: 'jampy' or 'galkin'
+    :param aperture_type: 'ifu' or 'single_slit'
+    :param anisotropy_model: 'consant', 'step', 'free_step', 'Osipkov-Merritt'
+    :param is_spherical: True or False
+    :param lens_model_type: 'powerlaw' or 'composite'
+    :param snr: signal-to-noise ratio per pixel in Voronoi bins
+    :param shape: 'oblate' or 'prolate'
+    :return: MCMC samples
     """
     return np.loadtxt(
         '../dynamics_chains/kcwi_dynamics_chain_{}_{}_{}_{}_{}_{}_{}.txt'.format(
@@ -103,6 +121,15 @@ def load_samples_mcmc(software, aperture_type, anisotropy_model, is_spherical,
 def load_likelihoods(software, aperture_type, anisotropy_model, is_spherical,
             lens_model_type='powerlaw', snr=15, shape='oblate'):
     """
+    Load likelihoods from file
+    :param software: 'jampy' or 'galkin'
+    :param aperture_type: 'ifu' or 'single_slit'
+    :param anisotropy_model: 'consant', 'step', 'free_step', 'Osipkov-Merritt'
+    :param is_spherical: True or False
+    :param lens_model_type: 'powerlaw' or 'composite'
+    :param snr: signal-to-noise ratio per pixel in Voronoi bins
+    :param shape: 'oblate' or 'prolate'
+    :return: likelihoods
     """
     return np.loadtxt(
         '../dynamics_chains/kcwi_dynamics_chain_{}_{}_{}_{}_{}_{}_{}_logL.txt'.format(
@@ -115,7 +142,15 @@ def load_likelihoods(software, aperture_type, anisotropy_model, is_spherical,
 def get_original_chain(software, aperture_type, anisotropy_model, is_spherical,
               lens_model_type='powerlaw', snr=15, shape='oblate'):
     """
-    Get dynamics chain in right shape.
+    Get MCMC chain in original 3D shape as [walker, step, parameter]
+    :param software: 'jampy' or 'galkin'
+    :param aperture_type: 'ifu' or 'single_slit'
+    :param anisotropy_model: 'consant', 'step', 'free_step', 'Osipkov-Merritt'
+    :param is_spherical: True or False
+    :param lens_model_type: 'powerlaw' or 'composite'
+    :param snr: signal-to-noise ratio per pixel in Voronoi bins
+    :param shape: 'oblate' or 'prolate'
+    :return: original MCMC chain
     """
     samples_mcmc = load_samples_mcmc(software, aperture_type, anisotropy_model, is_spherical,
                     lens_model_type, snr, shape)
@@ -139,6 +174,16 @@ def get_original_chain(software, aperture_type, anisotropy_model, is_spherical,
 def get_chain(software, aperture_type, anisotropy_model, is_spherical,
               lens_model_type='powerlaw', snr=15, shape='oblate', burnin=-100):
     """
+    Get MCMC chain in original 2D shape as [..., parameter]
+    :param software: 'jampy' or 'galkin'
+    :param aperture_type: 'ifu' or 'single_slit'
+    :param anisotropy_model: 'consant', 'step', 'free_step', 'Osipkov-Merritt'
+    :param is_spherical: True or False
+    :param lens_model_type: 'powerlaw' or 'composite'
+    :param snr: signal-to-noise ratio per pixel in Voronoi bins
+    :param shape: 'oblate' or 'prolate'
+    :param burnin: number of steps to discard at the beginning of the chain
+    :return: 2d MCMC chain after burnin
     """
     chain = get_original_chain(software, aperture_type, anisotropy_model,
                                is_spherical, lens_model_type, snr=snr,
@@ -151,6 +196,15 @@ def get_chain(software, aperture_type, anisotropy_model, is_spherical,
 def plot_mcmc_trace(software, aperture_type, anisotropy_model, is_spherical,
                     lens_model_type='powerlaw', snr=15, shape='oblate'):
     """
+    Plot MCMC trace
+    :param software: 'jampy' or 'galkin'
+    :param aperture_type: 'ifu' or 'single_slit'
+    :param anisotropy_model: 'consant', 'step', 'free_step', 'Osipkov-Merritt'
+    :param is_spherical: True or False
+    :param lens_model_type: 'powerlaw' or 'composite'
+    :param snr: signal-to-noise ratio per pixel in Voronoi bins
+    :param shape: 'oblate' or 'prolate'
+    :return: None
     """
     chain = get_original_chain(software, aperture_type, anisotropy_model, is_spherical,
                       lens_model_type, snr, shape)
@@ -214,6 +268,19 @@ def plot_corner(software, aperture_type, anisotropy_model, is_spherical,
                 fig=None, color='k', burnin=-100, plot_init=False
                 ):
     """
+    Plot corner plot
+    :param software: 'jampy' or 'galkin'
+    :param aperture_type: 'ifu' or 'single_slit'
+    :param anisotropy_model: 'consant', 'step', 'free_step', 'Osipkov-Merritt'
+    :param is_spherical: True or False
+    :param lens_model_type: 'powerlaw' or 'composite'
+    :param snr: signal-to-noise ratio per pixel in Voronoi bins
+    :param shape: 'oblate' or 'prolate'
+    :param fig: figure to plot on
+    :param color: color of the contours
+    :param burnin: number of steps to discard at the beginning of the chain
+    :param plot_init: if True, plot initial position of the walkers
+    :return: None
     """
     if lens_model_type == 'powerlaw':
         labels = labels_pl
@@ -252,6 +319,20 @@ def get_getdist_samples(software, aperture_type, anisotropy_model,
                         blind_D=True, 
                         ):
     """
+    Get samples from the chain in getdist format
+    :param software: 'jampy' or 'galkin'
+    :param aperture_type: 'ifu' or 'single_slit'
+    :param anisotropy_model: 'consant', 'step', 'free_step', 'Osipkov-Merritt'
+    :param is_spherical: True or False
+    :param lens_model_type: 'powerlaw' or 'composite'
+    :param snr: signal-to-noise ratio per pixel in Voronoi bins
+    :param shape: 'oblate' or 'prolate'
+    :param oblate_fraction: probability of oblateness
+    :param burnin: number of steps to discard at the beginning of the chain
+    :param latex_labels: list of latex labels
+    :param select_indices: list of indices to select
+    :param blind_D: if True, blind the distance parameter
+    :return: getdist MCSamples object
     """
     if lens_model_type == 'powerlaw':
         labels = labels_pl
@@ -334,7 +415,24 @@ def plot_dist(softwares, aperture_types, anisotropy_models, is_sphericals,
               select_indices=None, blind=True, print_difference=False
               ):
     """
-    :param blind: if None, will be unblinded.
+    Plot the posterior distributions of the parameters using getdist
+    :param softwares: list of 'jampy' or 'galkin'
+    :param aperture_types: list of 'ifu' or 'single_slit'
+    :param anisotropy_models: list of 'consant', 'step', 'free_step', 'Osipkov-Merritt'
+    :param is_sphericals: list of True or False
+    :param lens_model_types: list of 'powerlaw' or 'composite'
+    :param snrs: list of signal-to-noise ratio per pixel in Voronoi bins
+    :param shapes: list of 'oblate' or 'prolate'
+    :param oblate_fractions: list of probability of oblateness
+    :param burnin: number of steps to discard at the beginning of the chain
+    :param legend_labels: list of legend labels
+    :param save_fig: if not None, save the figure to this file
+    :param ani_param_latex: list of latex labels for the anisotropy parameters
+    :param font_scale: font scale
+    :param select_indices: list of indices to select for plotting, if None plot all
+    :param blind: if True, blind the distance parameter
+    :param print_difference: if True, print the difference between the first and every other case
+    :return: None
     """
     if 'powerlaw' in lens_model_types:
         labels = labels_pl
@@ -430,44 +528,55 @@ def plot_dist(softwares, aperture_types, anisotropy_models, is_sphericals,
     if save_fig is not None:
         g.fig.savefig(save_fig,
                       bbox_inches='tight')
-
         
 
 def get_most_likely_value(software, aperture_type, anisotropy_model,
                           is_spherical,
-                          lens_model_type='powerlaw', snr=15, shape='oblate', burnin=-100):
+                          lens_model_type='powerlaw', snr=15,
+                          shape='oblate', burnin=-100):
     """
+    Get the most likely value of the distance parameter
+    :param software: software to use, 'jampy' or 'galkin'
+    :param aperture_type: aperture type, 'ifu' or 'single_slit'
+    :param anisotropy_model: anisotropy model
+    :param is_spherical: if True, use spherical model
+    :param lens_model_type: lens model type, 'powerlaw' or 'composite'
+    :param snr: signal-to-noise ratio per A per Voronoi bins
+    :param shape: shape of the galaxy axisymmetry, 'oblate' or 'prolate'
+    :param burnin: number of burn-in steps
     """
-    chain = load_samples_mcmc(software, aperture_type, anisotropy_model, is_spherical,
-                    lens_model_type, snr, shape)
+    chain = load_samples_mcmc(software, aperture_type, anisotropy_model,
+                              is_spherical, lens_model_type, snr, shape)
     
-    likelihoods = load_likelihoods(software, aperture_type, anisotropy_model, is_spherical,
-                    lens_model_type, snr, shape)
-
-
-#     n_walkers = walker_ratio * n_params
-#     n_step = int(samples_mcmc.shape[0] / n_walkers)
-
-#     # print('N_step: {}, N_walkers: {}, N_params: {}'.format(n_step, n_walkers, n_params))
-
-#     chain = np.empty((n_walkers, n_step, n_params))
-
-#     for i in np.arange(n_params):
-#         samples = samples_mcmc[:, i].T
-#         chain[:, :, i] = samples.reshape((n_step, n_walkers)).T
-
-#     return np.median(chain[:, burnin:, :].reshape((-1, chain.shape[-1])),
-#                    axis=0)
+    likelihoods = load_likelihoods(software, aperture_type, anisotropy_model,
+                                   is_spherical, lens_model_type, snr, shape)
     
-    return chain[np.argmax(likelihoods), :]
-
+    return chain[np.argmax(likelihoods[burnin:, :]), :]
 
 
 def plot_residual(software, aperture_type, anisotropy_model, sphericity,
                   lens_model_type='powerlaw', snr=15, shape='oblate', 
-                  burnin=-100, verbose=True, cmap='viridis', vmax=350, vmin=100, norm=None
+                  burnin=-100, verbose=True, cmap='viridis',
+                  #vmax=350,
+                  # vmin=100,
+                  norm=None
                   ):
     """
+    Plot the residual between the observed and the predicted velocity dispersion
+    :param software: software to use, 'jampy' or 'galkin'
+    :param aperture_type: aperture type, 'ifu' or 'single_slit'
+    :param anisotropy_model: anisotropy model
+    :param sphericity: if True, use spherical model
+    :param lens_model_type: lens model type, 'powerlaw' or 'composite'
+    :param snr: signal-to-noise ratio per AA per Voronoi bins
+    :param shape: shape of the galaxy axisymmetry, 'oblate' or 'prolate'
+    :param burnin: number of burn-in steps
+    :param verbose: if True, print the chi^2
+    :param cmap: colormap
+    #:param vmax: maximum value of the colorbar
+    #:param vmin: minimum value of the colorbar
+    :param norm: normalization of the colorbar
+    :return: the figure
     """
     if sphericity == 'spherical':
         is_spherical = True
@@ -566,6 +675,16 @@ def plot_residual(software, aperture_type, anisotropy_model, sphericity,
 def get_bic(software, aperture_type, anisotropy_model, sphericity,
             lens_model_type='powerlaw', snr=15, shape='oblate', burnin=-100):
     """
+    Get the Bayesian information criterion
+    :param software: software to use, 'jampy' or 'galkin'
+    :param aperture_type: aperture type, 'ifu' or 'single_slit'
+    :param anisotropy_model: anisotropy model
+    :param sphericity: if True, 'spherical' or 'axisymmetric'
+    :param lens_model_type: lens model type, 'powerlaw' or 'composite'
+    :param snr: signal-to-noise ratio per AA per Voronoi bins
+    :param shape: shape of the galaxy axisymmetry, 'oblate' or 'prolate'
+    :param burnin: number of burn-in steps
+    :return: the BIC
     """
     if sphericity == 'spherical':
         is_spherical = True

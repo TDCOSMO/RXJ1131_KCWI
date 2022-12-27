@@ -4,9 +4,6 @@ For testing on the local machine, run from command line:
 ```
 python run_mcmc.py jampy constant ifu axisymmetric powerlaw 15 oblate
 ```
-
-This will compute velocity dispersion for the first 5 samples from the chain
-of <run_id>. The <run_id>_out.txt file needs to be in `base_dir`.
 """
 
 import numpy as np
@@ -106,12 +103,15 @@ init_pos = np.concatenate((
                      size=(num_walker, 4+additional_ani_param_num))
 ), axis=1)
 
+# divide lens model predicted D_dt by lambda array as the sampled D_dt is
+# taken as the true D_dt
 init_pos[:, 3] /= init_pos[:, -2]
 
 
 def likelihood_function(params):
     """
-    Wrapper around the `KinematicLikelihood.get_log_probability` method.
+    Wrapper around the `KinematicLikelihood.get_log_probability` method
+    :param params: array of parameters in the MCMC chain
     """
     return likelihood_class.get_log_probability(params)
 
