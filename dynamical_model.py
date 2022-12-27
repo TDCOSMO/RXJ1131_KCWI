@@ -122,7 +122,6 @@ class DynamicalModel(object):
         self.mass_model = mass_model
 
         self._do_mge_light = do_mge_light
-        self._light_profile_uncertainty = include_light_profile_uncertainty
         # self._is_spherical_model = is_spherical_model
         self._n_gauss = n_gauss
         self._mass_profile_min = mass_profile_min
@@ -647,7 +646,7 @@ class DynamicalModel(object):
         :return: surface brightness image
         """
         if phi is None:
-            phi = 90. - self.phi_light_1()
+            phi = 90. - self.LIGHT_PROFILE_MEAN[3]
         if x_center is None:
             x_center = self.X_CENTER
         if y_center is None:

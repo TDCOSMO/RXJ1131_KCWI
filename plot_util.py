@@ -56,7 +56,7 @@ D_s = cosmo.angular_diameter_distance(Z_S).value
 
 
 def get_init_pos(software, aperture_type, anisotropy_model, is_spherical,
-                 lens_model_type='powerlaw', snr=15, shape='oblate'):
+                 lens_model_type='powerlaw', snr=23, shape='oblate'):
     """
     Get initial position of walkers
     :param software: 'jampy' or 'galkin'
@@ -98,7 +98,7 @@ def get_init_pos(software, aperture_type, anisotropy_model, is_spherical,
 
 
 def load_samples_mcmc(software, aperture_type, anisotropy_model, is_spherical,
-            lens_model_type='powerlaw', snr=15, shape='oblate'):
+            lens_model_type='powerlaw', snr=23, shape='oblate'):
     """
     Load MCMC samples from file
     :param software: 'jampy' or 'galkin'
@@ -119,7 +119,7 @@ def load_samples_mcmc(software, aperture_type, anisotropy_model, is_spherical,
 
 
 def load_likelihoods(software, aperture_type, anisotropy_model, is_spherical,
-            lens_model_type='powerlaw', snr=15, shape='oblate'):
+            lens_model_type='powerlaw', snr=23, shape='oblate'):
     """
     Load likelihoods from file
     :param software: 'jampy' or 'galkin'
@@ -140,7 +140,7 @@ def load_likelihoods(software, aperture_type, anisotropy_model, is_spherical,
 
 
 def get_original_chain(software, aperture_type, anisotropy_model, is_spherical,
-              lens_model_type='powerlaw', snr=15, shape='oblate'):
+              lens_model_type='powerlaw', snr=23, shape='oblate'):
     """
     Get MCMC chain in original 3D shape as [walker, step, parameter]
     :param software: 'jampy' or 'galkin'
@@ -172,7 +172,7 @@ def get_original_chain(software, aperture_type, anisotropy_model, is_spherical,
 
 
 def get_chain(software, aperture_type, anisotropy_model, is_spherical,
-              lens_model_type='powerlaw', snr=15, shape='oblate', burnin=-100):
+              lens_model_type='powerlaw', snr=23, shape='oblate', burnin=-100):
     """
     Get MCMC chain in original 2D shape as [..., parameter]
     :param software: 'jampy' or 'galkin'
@@ -194,7 +194,7 @@ def get_chain(software, aperture_type, anisotropy_model, is_spherical,
 
 
 def plot_mcmc_trace(software, aperture_type, anisotropy_model, is_spherical,
-                    lens_model_type='powerlaw', snr=15, shape='oblate'):
+                    lens_model_type='powerlaw', snr=23, shape='oblate'):
     """
     Plot MCMC trace
     :param software: 'jampy' or 'galkin'
@@ -264,7 +264,7 @@ def plot_mcmc_trace(software, aperture_type, anisotropy_model, is_spherical,
 
 
 def plot_corner(software, aperture_type, anisotropy_model, is_spherical,
-                lens_model_type='powerlaw', snr=15, shape='oblate',
+                lens_model_type='powerlaw', snr=23, shape='oblate',
                 fig=None, color='k', burnin=-100, plot_init=False
                 ):
     """
@@ -312,7 +312,7 @@ def plot_corner(software, aperture_type, anisotropy_model, is_spherical,
 
 
 def get_getdist_samples(software, aperture_type, anisotropy_model,
-                        is_spherical, lens_model_type='powerlaw', snr=15,
+                        is_spherical, lens_model_type='powerlaw', snr=23,
                         shape='oblate',
                         oblate_fraction=None,
                         burnin=-100, latex_labels=None, select_indices=None,
@@ -446,7 +446,7 @@ def plot_dist(softwares, aperture_types, anisotropy_models, is_sphericals,
             latex_labels[i - 3] = a
             
     if snrs is None:
-        snrs = [15] * len(softwares)
+        snrs = [23] * len(softwares)
       
     if shapes is None:
         shapes = ['oblate'] * len(softwares)
@@ -532,7 +532,7 @@ def plot_dist(softwares, aperture_types, anisotropy_models, is_sphericals,
 
 def get_most_likely_value(software, aperture_type, anisotropy_model,
                           is_spherical,
-                          lens_model_type='powerlaw', snr=15,
+                          lens_model_type='powerlaw', snr=23,
                           shape='oblate', burnin=-100):
     """
     Get the most likely value of the distance parameter
@@ -545,17 +545,18 @@ def get_most_likely_value(software, aperture_type, anisotropy_model,
     :param shape: shape of the galaxy axisymmetry, 'oblate' or 'prolate'
     :param burnin: number of burn-in steps
     """
-    chain = load_samples_mcmc(software, aperture_type, anisotropy_model,
-                              is_spherical, lens_model_type, snr, shape)
+    chain = get_chain(software, aperture_type, anisotropy_model,
+                      is_spherical, lens_model_type, snr, shape,
+                      burnin=0)
     
     likelihoods = load_likelihoods(software, aperture_type, anisotropy_model,
                                    is_spherical, lens_model_type, snr, shape)
-    
-    return chain[np.argmax(likelihoods[burnin:, :]), :]
+
+    return chain[np.argmax(likelihoods), :]
 
 
 def plot_residual(software, aperture_type, anisotropy_model, sphericity,
-                  lens_model_type='powerlaw', snr=15, shape='oblate', 
+                  lens_model_type='powerlaw', snr=23, shape='oblate',
                   burnin=-100, verbose=True, cmap='viridis',
                   #vmax=350,
                   # vmin=100,
@@ -673,7 +674,7 @@ def plot_residual(software, aperture_type, anisotropy_model, sphericity,
 
 
 def get_bic(software, aperture_type, anisotropy_model, sphericity,
-            lens_model_type='powerlaw', snr=15, shape='oblate', burnin=-100):
+            lens_model_type='powerlaw', snr=23, shape='oblate', burnin=-100):
     """
     Get the Bayesian information criterion
     :param software: software to use, 'jampy' or 'galkin'
