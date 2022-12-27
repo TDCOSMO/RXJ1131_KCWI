@@ -108,6 +108,7 @@ init_pos = np.concatenate((
 
 init_pos[:, 3] /= init_pos[:, -2]
 
+
 def likelihood_function(params):
     """
     Wrapper around the `KinematicLikelihood.get_log_probability` method.

@@ -37,12 +37,67 @@ class DynamicalModel(object):
     """
     Class to compute velocity dispersion in is_spherical symmetry for RXJ 1131.
     """
+    # several static values defined as class attributes
+    PSF_FWHM = 0.7  # arcsec
+    PIXEL_SIZE = 0.1457  # KCWI datacube pixel size in arcsec
+
+    # x and y coordinates of the KCWI datacube grid
+    X_GRID, Y_GRID = np.meshgrid(
+        -1 * np.arange(-3.0597, 3.1597, 0.1457),
+        # x-axis points to negative RA
+        np.arange(-3.0597, 3.1597, 0.1457),
+    )
+
+    X_CENTER = -(24 - 21.) * PIXEL_SIZE  # 23.5
+    Y_CENTER = (22 - 21.) * PIXEL_SIZE  # 21.5
+
+    Z_L = 0.295  # deflector redshift from Agnello et al. (2018)
+    Z_S = 0.657  # source redshift from Agnello et al. (2018)
+
+    R_EFF = 1.91  # 1.8535 # arcsec
+
+    # mean of light profile parameters using a double Sersic profile
+    # [amp_1, R_sersic_1, n_sersic_1, PA, q_1, amp_2, R_sersic_2,
+    # n_sersic_2, q_2]
+    LIGHT_PROFILE_MEAN = np.array([4.40474442e+02, 3.00299605e-01,
+                                   1.60397112e+00, 1.19135121e+02,
+                                   8.47257348e-01, 3.28341603e+01,
+                                   2.43706866e+00, 1.09647022e+00,
+                                   8.65239555e-01])
+    # covariance of light profile parameters using a double Sersic profile
+    LIGHT_PROFILE_COVARIANCE = np.array(
+        [[4.11515860e+01, -2.03208975e-02, -1.03104740e-01,
+          1.09693956e-01, 1.48999694e-03, 8.56885752e-01,
+          -3.13987606e-02, 5.36186134e-02, -1.17388270e-03],
+         [-2.03208975e-02, 1.04182020e-05, 4.96588472e-05,
+          -3.55194658e-05, -6.25591932e-07, -4.23764649e-04,
+          1.59474533e-05, -2.95492629e-05, 6.36218169e-07],
+         [-1.03104740e-01, 4.96588472e-05, 2.86411322e-04,
+          -3.62377587e-04, -4.51689429e-06, -2.18435253e-03,
+          7.89894920e-05, -1.28496654e-04, 2.92070310e-06],
+         [1.09693956e-01, -3.55194658e-05, -3.62377587e-04,
+          2.31043783e-01, 1.20140352e-05, 1.17187785e-03,
+          2.99727402e-06, -4.30712951e-05, 3.22913188e-05],
+         [1.48999694e-03, -6.25591932e-07, -4.51689429e-06,
+          1.20140352e-05, 5.65701798e-06, 3.48519797e-05,
+          -1.15319484e-06, 7.65111027e-07, -4.52028785e-07],
+         [8.56885752e-01, -4.23764649e-04, -2.18435253e-03,
+          1.17187785e-03, 3.48519797e-05, 2.75694523e-02,
+          -9.68412872e-04, 8.38614112e-04, -2.01915206e-05],
+         [-3.13987606e-02, 1.59474533e-05, 7.89894920e-05,
+          2.99727402e-06, -1.15319484e-06, -9.68412872e-04,
+          3.66265600e-05, -3.65495944e-05, 7.83519423e-07],
+         [5.36186134e-02, -2.95492629e-05, -1.28496654e-04,
+          -4.30712951e-05, 7.65111027e-07, 8.38614112e-04,
+          -3.65495944e-05, 1.08987732e-04, -2.22861802e-06],
+         [-1.17388270e-03, 6.36218169e-07, 2.92070310e-06,
+          3.22913188e-05, -4.52028785e-07, -2.01915206e-05,
+          7.83519423e-07, -2.22861802e-06, 2.05730034e-06]])
+
     def __init__(self,
                  mass_model,
                  cosmo=None,
                  do_mge_light=True,
-                 include_light_profile_uncertainty=False,
-                 # is_spherical_model=False,
                  n_gauss=20,
                  mass_profile_min=10 ** -2.5,
                  mass_profile_max=10 ** 2,
@@ -50,9 +105,15 @@ class DynamicalModel(object):
                  light_profile_max=10 ** 2,
                  ):
         """
-        Load the model output file and load the posterior chain and other model
-        speification objects
-        :param do_mge_light: if True, `jampy` and `Galkin` will use the same MGE for light profile
+        Initialize the class
+        :param mass_model: str, 'powerlaw' or 'composite'
+        :param cosmo: astropy.cosmology object
+        :param do_mge_light: bool, if True, use MGE to fit the light profile
+        :param n_gauss: int, number of Gaussians to use in MGE
+        :param mass_profile_min: float, minimum radius for mass profile MGE
+        :param mass_profile_max: float, maximum radius for mass profile MGE
+        :light_profile_min: float, minimum radius for light profile MGE
+        :light_profile_max: float, maximum radius for light profile MGE
         """
         if mass_model not in ['powerlaw', 'composite']:
             raise ValueError('Mass profile "{}" not recognized!'.format(
@@ -101,10 +162,13 @@ class DynamicalModel(object):
 
     def get_light_ellipticity_parameters(self, params=None):
         """
-
+        Get the ellipticity parameters for the 2 Sersic light profiles.
+        :param params: list, [phi, q for sersic 1, q for sersic 2], if None, will call self.sample_from_double_sersic_fit()
+        :return: e11, e12, e21, e22
         """
         if params is None:
-            phi, q1, q2 = self.sample_from_double_sersic_fit(mode='ellipticities')
+            phi, q1, q2 = self.sample_from_double_sersic_fit(
+                mode='ellipticities')
         else:
             phi, q1, q2 = params
 
@@ -120,7 +184,9 @@ class DynamicalModel(object):
 
     def get_double_sersic_kwargs(self, is_shperical=True, params=None):
         """
-
+        Get the kwargs for the 2 Sersic light profiles
+        :param is_shperical: bool, if True, will return kwargs for spherical case
+        :return: kwargs_lens_light
         """
         if params is None:
             params = self.sample_from_double_sersic_fit()
@@ -158,7 +224,9 @@ class DynamicalModel(object):
     def get_light_mge_2d_fit(r_eff_multiplier=1):
         """
         Return light profile MGE for double Sersic fitted using mge_2d() in
-        a separate notebook.
+        a separate notebook
+        :param r_eff_multiplier: float, multiply the effective radius by this
+        :return: surf_lum, sigma_lum, qobs_lum
         """
         sigma_lum = np.array(
             [0.24344635, 0.36067945, 0.60628114, 1.13855552, 1.86364175,
@@ -179,6 +247,7 @@ class DynamicalModel(object):
 
     def get_lenstronomy_light_kwargs(self, surf_lum, sigma_lum, qobs_lum):
         """
+        Get lenstronomy light kwargs for given MGE parameters
         """
         raise NotImplementedError
 
@@ -186,7 +255,12 @@ class DynamicalModel(object):
                       is_spherical=False, set_q=None
                       ):
         """
-        Get MGE of the double Sersic light profile.
+        Get MGE of the double Sersic light profile
+        :param common_ellipticity: bool, if True, will use the same ellipticity
+        for both light profiles
+        :param is_spherical: bool, if True, will return kwargs for spherical case
+        :param set_q: float, if not None, will set the q of both light profiles
+        :return: surf_lum, sigma_lum, qobs_lum, position angle
         """
         # if not self._light_profile_uncertainty:
         #     return self.get_light_mge_2d_fit()
@@ -251,7 +325,7 @@ class DynamicalModel(object):
 
             sigma_lum = np.append(mge_1[1], mge_2[1])
             surf_lum = np.append(mge_1[0], mge_2[0]) / (
-                        np.sqrt(2 * np.pi) * sigma_lum)
+                    np.sqrt(2 * np.pi) * sigma_lum)
 
             _, q_1 = ellipticity2phi_q(e11, e12)
             _, q_2 = ellipticity2phi_q(e21, e22)
@@ -279,7 +353,11 @@ class DynamicalModel(object):
                      is_spherical=False
                      ):
         """
-
+        Get MGE of the mass profile
+        :param lens_params: array, lens parameters
+        :param lamda: float, MST parameter
+        :param is_spherical: bool, if True, will return kwargs for spherical case
+        :return: surf_mass, sigma_mass, qobs_mass
         """
         lens_cosmo = LensCosmo(z_lens=self.Z_L, z_source=self.Z_S)
         # 'q','$\theta_{E}$','$\gamma$','$\theta_{E,satellite}$','$\gamma_{ext}$','$\theta_{ext}$'
@@ -352,18 +430,18 @@ class DynamicalModel(object):
 
             mass_nfw = lens_model_nfw.kappa(r_array, r_array * 0, kwargs_nfw)
 
-            piemd_1 = 1 / np.sqrt(r_array ** 2 + 2.031239 ** 2 * 4 * q_1**2 /
+            piemd_1 = 1 / np.sqrt(r_array ** 2 + 2.031239 ** 2 * 4 * q_1 ** 2 /
                                   (1 + q_1) ** 2)
-            piemd_2 = 1 / np.sqrt(r_array ** 2 + 2.472729 ** 2 * 4 * q_1**2 /
+            piemd_2 = 1 / np.sqrt(r_array ** 2 + 2.472729 ** 2 * 4 * q_1 ** 2 /
                                   (1 + q_1) ** 2)
-            piemd_3 = 1 / np.sqrt(r_array ** 2 + 0.063157 ** 2 * 4 * q_2**2 /
+            piemd_3 = 1 / np.sqrt(r_array ** 2 + 0.063157 ** 2 * 4 * q_2 ** 2 /
                                   (1 + q_2) ** 2)
-            piemd_4 = 1 / np.sqrt(r_array ** 2 + 0.667333 ** 2 * 4 * q_2**2 /
+            piemd_4 = 1 / np.sqrt(r_array ** 2 + 0.667333 ** 2 * 4 * q_2 ** 2 /
                                   (1 + q_2) ** 2)
-            mass_baryon_1 = mass_to_light * 5.409 / (1 + q_1) * (q_1) *\
-                (piemd_1 - piemd_2)
-            mass_baryon_2 = mass_to_light * 1.26192 / (1 + q_2) * (q_2)\
-                * (piemd_3 - piemd_4)
+            mass_baryon_1 = mass_to_light * 5.409 / (1 + q_1) * (q_1) * \
+                            (piemd_1 - piemd_2)
+            mass_baryon_2 = mass_to_light * 1.26192 / (1 + q_2) * (q_2) \
+                            * (piemd_3 - piemd_4)
             # mass_baryon_1 = lens_model_baryon.kappa(r_array, r_array*0,
             #                                         kwargs_baryon_1)
             # mass_baryon_2 = lens_model_baryon.kappa(r_array, r_array*0,
@@ -400,7 +478,7 @@ class DynamicalModel(object):
                 np.ones_like(mass_mge_baryon_1.sol[0]) * 0.882587,
                 np.ones_like(mass_mge_baryon_2.sol[0]) * 0.847040))
 
-        surf_pot = amps # lens_cosmo.kappa2proj_mass(amps) / 1e12 # M_sun/pc^2
+        surf_pot = amps  # lens_cosmo.kappa2proj_mass(amps) / 1e12 # M_sun/pc^2
         sigma_pot = sigmas
 
         if is_spherical:
@@ -415,14 +493,21 @@ class DynamicalModel(object):
                           model='Osipkov-Merritt',
                           plot=False):
         """
+        Calculate the anisotropy b values for a given set of parameters
+        :param params: list of anisotropy parameters
+        :param surf_lum: surface brightness amplitudes
+        :param sigma_lum: surface brightness sigmas
+        :param model: anisotropy model
+        :param plot: if True, plot the anisotropy profile
+        :return: b values
         """
         if model == 'Osipkov-Merritt':
             betas = sigma_lum ** 2 / (
-                        (params * self.R_EFF) ** 2 + sigma_lum ** 2)
+                    (params * self.R_EFF) ** 2 + sigma_lum ** 2)
         elif model == 'generalized-OM':
             betas = params[1] * sigma_lum ** 2 / (
-                        (params[0] * self.R_EFF) ** 2 +
-                        sigma_lum ** 2)
+                    (params[0] * self.R_EFF) ** 2 +
+                    sigma_lum ** 2)
         elif model == 'constant':
             betas = (1 - params ** 2) * np.ones_like(sigma_lum)
         elif model == 'step':
@@ -466,6 +551,13 @@ class DynamicalModel(object):
     @staticmethod
     def transform_pix_coords(xs, ys, x_center, y_center, angle):
         """
+        Transform pixel coordinates to a new coordinate system
+        :param xs: x coordinates
+        :param ys: y coordinates
+        :param x_center: x coordinate of the center of the new coordinate system
+        :param y_center: y coordinate of the center of the new coordinate system
+        :param angle: angle of rotation of new coordinate system
+        :return: transformed x and y coordinates
         """
         xs_ = xs - x_center
         ys_ = ys - y_center
@@ -478,6 +570,9 @@ class DynamicalModel(object):
 
     def get_supersampled_grid(self, supersampling_factor=1):
         """
+        Get a supersampled grid for KCWI coordinates
+        :param supersampling_factor: supersampling factor
+        :return: x and y coordinates of the supersampled grid
         """
         # n_pix = self.X_GRID.shape[0] * oversampling_factor
         # pix_size = self.PIXEL_SIZE / oversampling_factor
@@ -513,6 +608,11 @@ class DynamicalModel(object):
 
     def get_jam_grid(self, phi=0., supersampling_factor=1):
         """
+        Get aligned coordinates with major axis for JAM
+        :param phi: angle of rotation of the major axis
+        :param supersampling_factor: supersampling factor
+        :return: flattened x and y coordinates of the JAM grid, flattened x
+        and y coordinates of the supersampled JAM grid
         """
         x_grid_supersampled, y_grid_supersmapled = \
             self.get_supersampled_grid(
@@ -535,6 +635,16 @@ class DynamicalModel(object):
                                      y_center=None,
                                      ):
         """
+        Get surface brightness image corrsponding to the given MGE parameters
+        :param surf_lum: surface brightness of the MGE components
+        :param sigma_lum: sigma of the MGE components
+        :param qobs_lum: axis ratio of the MGE components
+        :param x_grid: x coordinates of the grid
+        :param y_grid: y coordinates of the grid
+        :param phi: angle of rotation of the major axis
+        :x_center: x coordinate of the center of the grid
+        :y_center: y coordinate of the center of the grid
+        :return: surface brightness image
         """
         if phi is None:
             phi = 90. - self.phi_light_1()
@@ -543,7 +653,7 @@ class DynamicalModel(object):
         if y_center is None:
             y_center = self.Y_CENTER
 
-        e1, e2 = phi_q2_ellipticity(phi/180.*np.pi, np.mean(qobs_lum))
+        e1, e2 = phi_q2_ellipticity(phi / 180. * np.pi, np.mean(qobs_lum))
         kwargs_light = [
             {'amp': surf_lum,
              'sigma': sigma_lum,
@@ -563,7 +673,7 @@ class DynamicalModel(object):
     def compute_jampy_v_rms_model(self, lens_params,
                                   cosmo_params,
                                   ani_param,
-                                  #pa=121,
+                                  # pa=121,
                                   inclination=90,
                                   anisotropy_model='Oskipkov-Merritt',
                                   do_convolve=True,
@@ -576,16 +686,29 @@ class DynamicalModel(object):
                                   moment='zz',
                                   x_points=None, y_points=None,
                                   shape='oblate',
-                                  get_supersampled=False
                                   ):
         """
+        Compute the jampy sigma_los for the given lens parameters for deault
+        `moment='zz'`. Can be used to compute other moments as well.
         :param lens_params: lens mass model parameters, [theta_E, gamma,
-        q] for power law, ... for composite
-        :param pa: positoin angle in radian
-        :param is_spherical: if True, will override any q for mass or
+        q] for power law, ... for composite [kappa_s, r_s, m2l, q]
+        :param cosmo_params: cosmology parameters, [lambda, D_dt/Mpic, D_d/Mpc]
+        :param ani_param: anisotropy parameters
+        :param inclination: inclination, degrees
+        :param anisotropy_model: anisotropy model
+        :param do_convolve: convolve with the PSF
+        :param supersampling_factor: supersampling factor
+        :param voronoi_bins: Voronoi binning map
+        :param om_r_scale: scale of the Oskipkov-Merritt anisotropy
+        :param aperture_type: aperture type, 'ifu' or 'single_slit'
+        :param is_spherical: if True, will override any q for mass or light
+        :param q_light: if provided, will override the axis ratio of the light
+        :param moment: moment to compute, 'zz' for LOS velocity dispersion,
+        'z' for LOS velocity
         :param x_points: to get kinematic profile directly
         :param y_points: to get kinematic profile directly
-        :param q_light: to manually set the q_light
+        :param shape: axisymmetric shape of the galaxy, 'oblate' or 'prolate'
+        :return: velocity moment map, surface brightness map
         """
         # if self.mass_model == 'powerlaw':
         #     theta_e, gamma, q = lens_params
@@ -604,8 +727,8 @@ class DynamicalModel(object):
         c2_4piG = 1.6624541593797972e+6
         # the sampled/passed D_dt is true D_dt, so not needed to divide by
         # lamda
-        sigma_crit = c2_4piG * D_dt / D_d**2 / (1 + self.Z_L)
-        surf_pot *= sigma_crit # from convergence to M_sun / pc^2
+        sigma_crit = c2_4piG * D_dt / D_d ** 2 / (1 + self.Z_L)
+        surf_pot *= sigma_crit  # from convergence to M_sun / pc^2
 
         bs = self.get_anisotropy_bs(ani_param, surf_lum, sigma_lum,
                                     model=anisotropy_model
@@ -631,7 +754,7 @@ class DynamicalModel(object):
         norm_psf = 1.
 
         mbh = 0
-        distance = D_d #self.lens_cosmo.dd
+        distance = D_d  # self.lens_cosmo.dd
 
         if aperture_type == 'single_slit':
             pixel_size = 0.01
@@ -666,8 +789,8 @@ class DynamicalModel(object):
             voronoi_bins = None
             _x_grid_spaxel = x_points
             _y_grid_spaxel = y_points
-            pixel_size = np.sqrt((x_points[1] - x_points[0])**2
-                                 + (y_points[1] - y_points[0])**2)/2.
+            pixel_size = np.sqrt((x_points[1] - x_points[0]) ** 2
+                                 + (y_points[1] - y_points[0]) ** 2) / 2.
             phi = np.arctan2(y_points[1] - y_points[0],
                              x_points[1] - x_points[0]) * 180. / np.pi
 
@@ -709,7 +832,7 @@ class DynamicalModel(object):
                 # data=rms, errors=erms,
                 ml=1, shape=shape).model
 
-        #if aperture_type == 'single_slit':
+        # if aperture_type == 'single_slit':
         #    return jam[0], None
 
         if x_points is not None:
@@ -726,8 +849,8 @@ class DynamicalModel(object):
                 sigma_lum, qobs_lum,
                 x_grid_spaxel,
                 y_grid_spaxel, phi=phi, x_center=0, y_center=0).reshape((
-                                                            num_pix_spaxel,
-                                                            num_pix_spaxel))
+                num_pix_spaxel,
+                num_pix_spaxel))
         else:
             flux = self.get_surface_brightness_image(
                 surf_lum * (2 * np.pi * sigma_lum ** 2),
@@ -804,7 +927,11 @@ class DynamicalModel(object):
 
     def bin_map_in_voronoi_bins(self, vel_dis_map, IR_map, voronoi_bins):
         """
-
+        Bin a map in Voronoi bins
+        :param vel_dis_map: velocity dispersion map
+        :param IR_map: surface brightness map
+        :param voronoi_bins: Voronoi bins
+        :return: binned velocity dispersion map and binned surface brightness map
         """
         n_bins = int(np.nanmax(voronoi_bins)) + 1
 
@@ -829,19 +956,25 @@ class DynamicalModel(object):
                                     ani_param,
                                     surf_lum, sigma_lum,
                                     surf_pot, sigma_pot,
-                                    print_step=None,
                                     bs=None,
-                                    r_eff_uncertainty=0.02,
-                                    analytic_kinematics=False,
-                                    supersampling_factor=1,
-                                    voronoi_bins=None,
-                                    single_slit=False,
-                                    do_convolve=True,
-                                    anisotropy_model='Osipkov-Merritt',
-                                    is_spherical=True,
-                                    alignment='sph'
+                                    anisotropy_model='constant',
+                                    alignment='sph',
+                                    **kwargs
                                     ):
         """
+        Retrieve the anisotropy profile that is effectively applied in the
+        3D case
+        :param Rs: radii
+        :param ani_param: anisotropy parameter
+        :param surf_lum: surface brightness MGE amplitude
+        :param sigma_lum: surface brightness MGE sigma
+        :param surf_pot: mass MGE amplitude
+        :param sigma_pot: mass MGE sigma
+        :param print_step: print step
+        :param anisotropy_model: anisotropy model
+        :param alignment: alignment, 'sph' or 'ell'
+        :param kwargs: keyword arguments
+        :return: anisotropy profile
         """
 
         qobs_lum = np.ones_like(sigma_lum)
@@ -885,6 +1018,10 @@ class DynamicalModel(object):
                                   single_slit=False
                                   ):
         """
+        Get the kinematics_api object from lenstronomy's galkin
+        :param anisotropy_model: anisotropy model
+        :param single_slit: single slit or not
+        :return: kinematics_api object
         """
         if anisotropy_model == 'Osipkov-Merritt':
             anisotropy_type = 'OM'  # anisotropy_model model applied
@@ -960,7 +1097,17 @@ class DynamicalModel(object):
                                    supersampling_factor=5,
                                    ):
         """
-        :param lens_params: [theta_E, gamma, q]
+        Compute the galkin v_rms model
+        :param kinematics_api: kinematics_api object
+        :param lens_params: lens parameters, for power-law [theta_E, gamma,
+        q], for composite [kappa, r_s, m2l, q]
+        :param ani_param: anisotropy parameter
+        :param r_eff_multiplier: effective radius multiplier
+        :param anisotropy_model: anisotropy model
+        :param aperture_type: aperture type, 'ifu' or 'single_slit'
+        :param voronoi_bins: Voronoi binning map
+        :param supersampling_factor: supersampling factor
+        :return: v_rms model
         """
         if self.mass_model == 'powerlaw':
             theta_E, gamma, _ = lens_params
@@ -1007,8 +1154,14 @@ class DynamicalModel(object):
                                             anisotropy_model='Osipkov-Merritt',
                                             ):
         """
-        Compute v_rms using Galkin's numerical
-        approach.
+        Compute v_rms profile as a function of radius using Galkin's numerical
+        approach
+        :param rs: radius array
+        :param theta_E: Einstein radius
+        :param gamma: power-law slope
+        :param ani_param: anisotropy parameter
+        :param anisotropy_model: anisotropy model
+        :return: v_rms array
         """
         bins = np.zeros(len(rs) + 1)
         bins[:-1] = rs - (rs[1] - rs[0]) / 2.
@@ -1077,11 +1230,15 @@ class DynamicalModel(object):
 
     def get_lenstronomy_kwargs(self, theta_E, gamma,
                                ani_param,
-                               anisotropy_model='Osipkov-Merritt',
-                               r_eff_multiplier=None
+                               anisotropy_model='Osipkov-Merritt'
                                ):
         """
-        :param r_eff_multiplier: a factor for r_eff to account for uncertainty.
+        Get lenstronomy kwargs for lens model, lens light model and anisotropy
+        :param theta_E: Einstein radius
+        :param gamma: power-law slope
+        :param ani_param: anisotropy parameter
+        :param anisotropy_model: anisotropy model
+        :return: kwargs_lens, kwargs_lens_light, kwargs_anisotropy
         """
         kwargs_lens = [{'theta_E': theta_E,
                         'gamma': gamma,
@@ -1123,102 +1280,6 @@ class DynamicalModel(object):
 
         return kwargs_lens, kwargs_lens_light, kwargs_anisotropy
 
-    # several static values defined as class attributes
-    PSF_FWHM = 0.7
-    X_GRID, Y_GRID = np.meshgrid(
-        -1 * np.arange(-3.0597, 3.1597, 0.1457),
-        # x-axis points to negative RA
-        np.arange(-3.0597, 3.1597, 0.1457),
-    )
-
-    PIXEL_SIZE = 0.1457
-    X_CENTER = -(24 - 21.) * PIXEL_SIZE  # 23.5
-    Y_CENTER = (22 - 21.) * PIXEL_SIZE  # 21.5
-
-    Z_L = 0.295  # deflector redshift from Agnello et al. (2018)
-    Z_S = 0.657  # source redshift
-
-    # R_sersic_1 = lambda _: np.random.normal(2.49, 0.01) * np.sqrt(0.878)
-    # # np.sqrt(np.random.normal(0.912, 0.004))
-    # n_sersic_1 = lambda _: np.random.normal(0.93, 0.03)
-    # I_light_1 = lambda _: np.random.normal(0.091, 0.001)
-    # q_light_1 = lambda _: 0.878  # np.random.normal(0.921, 0.004)
-    # phi_light_1 = lambda _: 121.6  # np.random.normal(90-121.6, 0.5)
-    #
-    # R_sersic_2 = lambda _: np.random.normal(0.362, 0.009) * np.sqrt(0.849)
-    # # np.sqrt(np.random.normal(0.867, 0.002))
-    # n_sersic_2 = lambda _: np.random.normal(1.59, 0.03)
-    # I_light_2 = lambda _: np.random.normal(0.89, 0.03)
-    # q_light_2 = lambda _: 0.849  # np.random.normal(0.849, 0.004)
-
-    R_sersic_scaler = 1
-    # R_sersic_1 = lambda _: np.random.normal(2.3623, 0.0078)
-    # #* np.sqrt(0.878)
-    # # np.sqrt(np.random.normal(0.912, 0.004))
-    # n_sersic_1 = lambda _: np.random.normal(1.5340, 0.0155)
-    # I_light_1 = lambda _: np.random.normal(33.7894, 0.2940)
-    # q_light_1 = lambda _: 0.8469  # np.random.normal(0.921, 0.004)
-    # phi_light_1 = lambda _: 121.6  # np.random.normal(90-121.6, 0.5)
-    #
-    # R_sersic_2 = lambda _: np.random.normal(0.3302, 0.0083) #* np.sqrt(0.849)
-    # # np.sqrt(np.random.normal(0.867, 0.002))
-    # n_sersic_2 = lambda _: np.random.normal(1.5755, 0.0296)
-    # I_light_2 = lambda _: np.random.normal(352.2126, 11.0035)
-    # q_light_2 = lambda _: 0.849466  # np.random.normal(0.849, 0.004)
-
-    R_sersic_1 = lambda _: np.random.normal(0.2871, 0.0032)
-    # * np.sqrt(0.878)
-    # np.sqrt(np.random.normal(0.912, 0.004))
-    n_sersic_1 = lambda _: np.random.normal(1.5442, 0.0199)
-    I_light_1 = lambda _: np.random.normal(468.94, 0.65)
-    q_light_1 = lambda _: np.random.normal(0.850, 0.002)  # 0.85  #
-    # np.random.normal(0.921, 0.004)
-    phi_light_1 = lambda _: np.random.normal(120.1, 0.4)  # 120.74  #
-    # np.random.normal(90-121.6, 0.5)
-
-    R_sersic_2 = lambda _: np.random.normal(2.4136, 0.0058)  # * np.sqrt(0.849)
-    # np.sqrt(np.random.normal(0.867, 0.002))
-    n_sersic_2 = lambda _: np.random.normal(1.1325, 0.0120)
-    I_light_2 = lambda _: np.random.normal(33, 0.03)
-    q_light_2 = lambda _: np.random.normal(0.865, 0.001)  # 0.87  #
-    # np.random.normal(0.849, 0.004)
-
-    R_EFF = 1.91  # 1.8535 # arcsec
-
-    LIGHT_PROFILE_MEAN = np.array([4.40474442e+02, 3.00299605e-01,
-                                   1.60397112e+00, 1.19135121e+02,
-                                   8.47257348e-01, 3.28341603e+01,
-                                   2.43706866e+00, 1.09647022e+00,
-                                   8.65239555e-01])
-    LIGHT_PROFILE_COVARIANCE = np.array(
-        [[4.11515860e+01, -2.03208975e-02, -1.03104740e-01,
-          1.09693956e-01, 1.48999694e-03, 8.56885752e-01,
-          -3.13987606e-02, 5.36186134e-02, -1.17388270e-03],
-         [-2.03208975e-02, 1.04182020e-05, 4.96588472e-05,
-          -3.55194658e-05, -6.25591932e-07, -4.23764649e-04,
-          1.59474533e-05, -2.95492629e-05, 6.36218169e-07],
-         [-1.03104740e-01, 4.96588472e-05, 2.86411322e-04,
-          -3.62377587e-04, -4.51689429e-06, -2.18435253e-03,
-          7.89894920e-05, -1.28496654e-04, 2.92070310e-06],
-         [1.09693956e-01, -3.55194658e-05, -3.62377587e-04,
-          2.31043783e-01, 1.20140352e-05, 1.17187785e-03,
-          2.99727402e-06, -4.30712951e-05, 3.22913188e-05],
-         [1.48999694e-03, -6.25591932e-07, -4.51689429e-06,
-          1.20140352e-05, 5.65701798e-06, 3.48519797e-05,
-          -1.15319484e-06, 7.65111027e-07, -4.52028785e-07],
-         [8.56885752e-01, -4.23764649e-04, -2.18435253e-03,
-          1.17187785e-03, 3.48519797e-05, 2.75694523e-02,
-          -9.68412872e-04, 8.38614112e-04, -2.01915206e-05],
-         [-3.13987606e-02, 1.59474533e-05, 7.89894920e-05,
-          2.99727402e-06, -1.15319484e-06, -9.68412872e-04,
-          3.66265600e-05, -3.65495944e-05, 7.83519423e-07],
-         [5.36186134e-02, -2.95492629e-05, -1.28496654e-04,
-          -4.30712951e-05, 7.65111027e-07, 8.38614112e-04,
-          -3.65495944e-05, 1.08987732e-04, -2.22861802e-06],
-         [-1.17388270e-03, 6.36218169e-07, 2.92070310e-06,
-          3.22913188e-05, -4.52028785e-07, -2.01915206e-05,
-          7.83519423e-07, -2.22861802e-06, 2.05730034e-06]])
-
     def sample_from_double_sersic_fit(self, mode='all'):
         """
         Sample one point from the mean and covariance of double Sersic
@@ -1238,5 +1299,25 @@ class DynamicalModel(object):
         else:
             raise ValueError('mode not recognized!')
 
-_nfw_qs = np.array([0.2955890109246895, 0.29729484339412804, 0.2993046678215645, 0.30148731960847175, 0.3037781629679952, 0.30656181091958756, 0.30944101265858914, 0.3128449794390762, 0.31637187278135614, 0.32057430074818316, 0.32525183117191303, 0.3304782178184469, 0.33659904664300166, 0.34335555305827037, 0.3512799441223804, 0.36060271442019076, 0.37271593485449106, 0.3853688300669107, 0.39850632018999277, 0.4123670033003701, 0.426085510857797, 0.4405323411004247, 0.4549318199526641, 0.4703884811354565, 0.48553317127707907, 0.5009183370787333, 0.5168215047382049, 0.5334143339607527, 0.5499198443785049, 0.5666119560282026, 0.5839594642663198, 0.6018951710415525, 0.6198941913485861, 0.6385840422577401, 0.6573510262452367, 0.6761701874779739, 0.6958430091624018, 0.7161996832176144, 0.7364049180144907, 0.7566471634820947, 0.7777133348551333, 0.7987235524003334, 0.8198882232045268, 0.8422204547523987, 0.8646648092383161, 0.8868192016046453, 0.9103444426772708, 0.9322329992014406, 0.9567554192086308, 0.9796534205266368])
+
+# interpolation grid to get convergence ellipticity from potential
+# ellipticity for the NFW profile
+_nfw_qs = np.array(
+    [0.2955890109246895, 0.29729484339412804, 0.2993046678215645,
+     0.30148731960847175, 0.3037781629679952, 0.30656181091958756,
+     0.30944101265858914, 0.3128449794390762, 0.31637187278135614,
+     0.32057430074818316, 0.32525183117191303, 0.3304782178184469,
+     0.33659904664300166, 0.34335555305827037, 0.3512799441223804,
+     0.36060271442019076, 0.37271593485449106, 0.3853688300669107,
+     0.39850632018999277, 0.4123670033003701, 0.426085510857797,
+     0.4405323411004247, 0.4549318199526641, 0.4703884811354565,
+     0.48553317127707907, 0.5009183370787333, 0.5168215047382049,
+     0.5334143339607527, 0.5499198443785049, 0.5666119560282026,
+     0.5839594642663198, 0.6018951710415525, 0.6198941913485861,
+     0.6385840422577401, 0.6573510262452367, 0.6761701874779739,
+     0.6958430091624018, 0.7161996832176144, 0.7364049180144907,
+     0.7566471634820947, 0.7777133348551333, 0.7987235524003334,
+     0.8198882232045268, 0.8422204547523987, 0.8646648092383161,
+     0.8868192016046453, 0.9103444426772708, 0.9322329992014406,
+     0.9567554192086308, 0.9796534205266368])
 _potential_qs = np.linspace(0.4, 0.99, 50)

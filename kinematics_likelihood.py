@@ -15,13 +15,22 @@ class KinematicLikelihood(object):
                  software='jampy',
                  anisotropy_model='constant',
                  aperture='ifu',
-                 snr_per_bin=15,
+                 snr_per_bin=23,
                  is_spherical=False,
                  mpi=False,
                  shape='oblate'
                  ):
         """
-
+        Initialize the kinematic likelihood object
+        :param lens_model_type: string, 'powerlaw' or 'composite'
+        :param software: string, 'jampy' or 'galkin'
+        :param anisotropy_model: string, 'constant', 'step', 'free_step,
+        or 'Osipkov-Merritt'
+        :param aperture: string, 'ifu' or 'single_slit'
+        :param snr_per_bin: float, signal-to-noise ratio per bin
+        :param is_spherical: bool, if True, use spherical lens model
+        :param mpi: bool, if True, use MPI
+        :param shape: string, 'oblate' or 'prolate' for the lens galaxy 3D shape
         """
         self.lens_model_type = lens_model_type
         self.software = software
@@ -36,10 +45,10 @@ class KinematicLikelihood(object):
         self.velocity_dispersion_mean = None
         self.velocity_dispersion_covariance = None
         if self.aperture_type == 'single_slit':
-            self.velocity_dispersion_mean = 293 #323 # km/s
-            self.velocity_dispersion_covariance = (20 * 293/323)**2 # km/s
-            self.velocity_dispersion_inverse_covariance = 1.\
-                                        / self.velocity_dispersion_covariance
+            self.velocity_dispersion_mean = 293  # 323 # km/s
+            self.velocity_dispersion_covariance = (20 * 293 / 323) ** 2  # km/s
+            self.velocity_dispersion_inverse_covariance = 1. \
+                / self.velocity_dispersion_covariance
         else:
             self.load_velocity_dispersion_data_ifu(self.snr_per_bin)
             self.velocity_dispersion_inverse_covariance = np.linalg.inv(
@@ -49,14 +58,13 @@ class KinematicLikelihood(object):
         self.lens_model_posterior_covariance = None
         self.load_lens_model_posterior(self.lens_model_type)
         self.lens_model_posterior_inverse_covariance = np.linalg.inv(
-                                        self.lens_model_posterior_covariance)
+            self.lens_model_posterior_covariance)
 
         self._intrinsic_q_prior_interp = None
 
         self.dynamical_model = DynamicalModel(
-                mass_model=self.lens_model_type,
-                include_light_profile_uncertainty=True,
-            )
+            mass_model=self.lens_model_type
+        )
         if self.software == 'galkin':
             self.galkin_kinematics_api = self.dynamical_model.get_galkin_kinematics_api(
                 anisotropy_model=self.anisotropy_model,
@@ -68,6 +76,11 @@ class KinematicLikelihood(object):
 
     def get_galkin_velocity_dispersion(self, theta_e, gamma, ani_param):
         """
+        Get the velocity dispersion from Galkin
+        :param theta_e: Einstein radius
+        :param gamma: power-law slope
+        :param ani_param: anisotropy parameter
+        :return: velocity dispersion
         """
         self.dynamical_model.compute_galkin_v_rms_model(
             self.galkin_kinematics_api,
@@ -81,7 +94,13 @@ class KinematicLikelihood(object):
                         anisotropy_model, ani_param
                         ):
         """
-
+        Get the kwargs for GalKin
+        :param theta_E: Einstein radius
+        :param gamma: power-law slope
+        :param r_eff: effective radius
+        :param anisotropy_model: string, 'constant', 'Osipkov-Merritt'
+        :param ani_param: anisotropy parameter
+        :return: kwargs_lens, kwargs_light, kwargs_anisotropy
         """
         kwargs_lens = [{'theta_E': theta_E,
                         'gamma': gamma,
@@ -106,22 +125,26 @@ class KinematicLikelihood(object):
             kwargs_anisotropy = {'r_ani': ani_param * r_eff}
         elif anisotropy_model == 'constant':
             kwargs_anisotropy = {'beta': ani_param}
+        else:
+            raise NotImplementedError
 
         return kwargs_lens, kwargs_lens_light, kwargs_anisotropy
 
     @staticmethod
     def get_mean_covariance_from_file(file_id):
         """
-
+        Read mean and covariance from a file for a given file_id
+        :param file_id: string, file ID
         """
-        mean = np.loadtxt(file_id+'_mean.txt')
-        covariance = np.loadtxt(file_id+'_covariance.txt')
+        mean = np.loadtxt(file_id + '_mean.txt')
+        covariance = np.loadtxt(file_id + '_covariance.txt')
 
         return mean, covariance
 
     def load_lens_model_posterior(self, lens_model_type):
         """
-
+        Load the lens model posterior
+        :param lens_model_type: string, lens model type, 'powerlaw' or 'composite'
         """
         mean, covariance = self.get_mean_covariance_from_file(
             './data_products/lens_model_posterior_{}'.format(lens_model_type))
@@ -130,7 +153,8 @@ class KinematicLikelihood(object):
 
     def load_velocity_dispersion_data_ifu(self, snr_per_bin):
         """
-
+        Load the velocity dispersion data for IFU
+        :param snr_per_bin: signal-to-noise ratio per bin
         """
         mean, covariance = self.get_mean_covariance_from_file(
             './data_products/'
@@ -142,6 +166,9 @@ class KinematicLikelihood(object):
     @staticmethod
     def load_voronoi_bin_map(snr_per_bin, plot=False):
         """
+        Load the Voronoi bin map
+        :param snr_per_bin: signal-to-noise ratio per bin
+        :param plot: bool, plot the Voronoi bin map if True
         """
         voronoi_bin_mapping = load_bin_mapping(snr_per_bin, plot=plot)
         # self.voronoi_bin_mapping[self.voronoi_bin_mapping < 0] = np.nan
@@ -150,7 +177,10 @@ class KinematicLikelihood(object):
 
     def get_intrinsic_q_prior(self, intrinsic_q):
         """
-
+        Get the intrinsic q prior. The values are taken from Chang et al.
+        2013 (figure 7, https://ui.adsabs.harvard.edu/abs/2013ApJ...773
+        ..149C/abstract)
+        :param intrinsic_q: intrinsic q value
         """
         if self._intrinsic_q_prior_interp is None:
             if self.shape == 'oblate':
@@ -239,12 +269,20 @@ class KinematicLikelihood(object):
     @staticmethod
     def get_normalized_delta_squared(delta, inverse_covariance):
         """
-
+        Compute v * Sigma^{-1} * v, where v is a vector and Sigma is the
+        covariance matrix
+        :param delta: vector
+        :param inverse_covariance: inverse covariance matrix \Sigma^{-1}
+        :return: v * Sigma^{-1} * v
         """
         return delta.T @ (inverse_covariance @ delta)
 
     def get_lens_model_likelihood(self, lens_params):
         """
+        Get the likelihood of the lens model parameters
+        :param lens_params: lens model parameters, for power-law [theta,
+        gamma, q, D_dt], for composite [kappa, r_s, m2l, q, D_dt]
+        :return: log likelihood of the lens model parameters
         """
         return -0.5 * self.get_normalized_delta_squared(
             self.lens_model_posterior_mean - lens_params,
@@ -253,6 +291,9 @@ class KinematicLikelihood(object):
 
     def get_kinematic_likelihood(self, v_rms):
         """
+        Get the likelihood of the kinematic data
+        :param v_rms: RMS velocity
+        :return: log likelihood of the kinematic data
         """
         if self.aperture_type == 'ifu':
             return -0.5 * self.get_normalized_delta_squared(
@@ -260,16 +301,19 @@ class KinematicLikelihood(object):
                 self.velocity_dispersion_inverse_covariance
             )
         elif self.aperture_type == 'single_slit':
-            return -0.5 * (v_rms - self.velocity_dispersion_mean)**2 \
+            return -0.5 * (v_rms - self.velocity_dispersion_mean) ** 2 \
                    * self.velocity_dispersion_inverse_covariance
         else:
             raise ValueError('Aperture type not recognized!')
 
     def get_anisotropy_prior(self, ani_param):
         """
+        Get the prior of the anisotropy parameter
+        :param ani_param: anisotropy parameter
+        :return: log prior of the anisotropy parameter
         """
-        low = 0.7 # 0.87
-        hi = 1.23 # 1.12
+        low = 0.7  # 0.87
+        hi = 1.23  # 1.12
         if self.anisotropy_model == 'constant':
             if not low < ani_param < hi:
                 return -np.inf
@@ -286,7 +330,7 @@ class KinematicLikelihood(object):
                 return -np.inf
             if not low < ani_param[1] < hi:
                 return -np.inf
-            if not 0.5*1.91 < ani_param[2] < 100.:
+            if not 0.5 * 1.91 < ani_param[2] < 100.:
                 return -np.inf
 
             # return -np.log(ani_param[2])
@@ -295,6 +339,8 @@ class KinematicLikelihood(object):
 
     def get_log_prior(self, params):
         """
+        Get the log prior of the parameters
+        :param params: parameters
         """
         if self.lens_model_type == 'powerlaw':
             theta_e, gamma, q, D_dt, D_d, inclination, lamda, *ani_param = \
@@ -306,11 +352,11 @@ class KinematicLikelihood(object):
             if not 1.5 < gamma < 2.5:
                 return -np.inf
 
-            lens_model_params = np.array([theta_e, gamma, q, D_dt*lamda])
+            lens_model_params = np.array([theta_e, gamma, q, D_dt * lamda])
         elif self.lens_model_type == 'composite':
             kappa_s, r_s, m2l, q, D_dt, D_d, inclination, lamda, *ani_param = \
                 params
-            lens_model_params = np.array([kappa_s, r_s, m2l, q, D_dt*lamda])
+            lens_model_params = np.array([kappa_s, r_s, m2l, q, D_dt * lamda])
         else:
             raise NotImplementedError
 
@@ -330,35 +376,40 @@ class KinematicLikelihood(object):
             return -np.inf
 
         if self.lens_model_type == 'powerlaw':
-            intrinsic_q = np.sqrt(q**2 - np.cos(inclination*np.pi/180.)**2) \
-                          / np.sin(inclination*np.pi/180.)
+            intrinsic_q = np.sqrt(
+                q ** 2 - np.cos(inclination * np.pi / 180.) ** 2) \
+                          / np.sin(inclination * np.pi / 180.)
         elif self.lens_model_type == 'composite':
             q_nfw = self.dynamical_model.interp_nfw_q(q)
-            intrinsic_q = np.sqrt(q_nfw**2 - np.cos(inclination*np.pi/180.)**2) \
-                          / np.sin(inclination*np.pi/180.)
+            intrinsic_q = np.sqrt(
+                q_nfw ** 2 - np.cos(inclination * np.pi / 180.) ** 2) \
+                          / np.sin(inclination * np.pi / 180.)
         else:
             raise ValueError("Lens model type {} not recognized!".format(
                 self.lens_model_type))
-        intrinsic_q_lum = np.sqrt(self.dynamical_model.q_light_2()**2 -
+        intrinsic_q_lum = np.sqrt(self.dynamical_model.q_light_2() ** 2 -
                                   np.cos(inclination * np.pi / 180.) ** 2) \
-                          / np.sin(inclination*np.pi/180.)
-        if np.isinf(intrinsic_q) or np.isnan(intrinsic_q) or intrinsic_q**2\
+                          / np.sin(inclination * np.pi / 180.)
+        if np.isinf(intrinsic_q) or np.isnan(intrinsic_q) or intrinsic_q ** 2 \
                 < 0.1:
             return -np.inf
 
         if np.isinf(intrinsic_q_lum) or np.isnan(intrinsic_q_lum) or \
-                intrinsic_q_lum**2 < 0.1:
+                intrinsic_q_lum ** 2 < 0.1:
             return -np.inf
 
         if not 0. < lamda < 2.:
             return -np.inf
 
         return self.get_anisotropy_prior(ani_param) + \
-            self.get_lens_model_likelihood(lens_model_params) + \
-            self.get_intrinsic_q_prior(intrinsic_q_lum)
+               self.get_lens_model_likelihood(lens_model_params) + \
+               self.get_intrinsic_q_prior(intrinsic_q_lum)
 
     def get_v_rms(self, params):
         """
+        Get the RMS velocity
+        :param params: parameters in the MCMC chain
+        :return: RMS velocity
         """
         if self.lens_model_type == 'powerlaw':
             theta_e, gamma, q, D_dt, D_d, inclination, lamda, *ani_param = \
@@ -385,7 +436,7 @@ class KinematicLikelihood(object):
                 anisotropy_model=self.anisotropy_model,
                 voronoi_bins=self.voronoi_bin_mapping,
                 om_r_scale=ani_param if self.anisotropy_model ==
-                'Osipkov-Merritt' else None,
+                                        'Osipkov-Merritt' else None,
                 is_spherical=self.is_spherical,
                 aperture_type=self.aperture_type,
                 shape=self.shape
@@ -408,13 +459,18 @@ class KinematicLikelihood(object):
 
     def get_log_likelihood(self, params):
         """
-
+        Get the log likelihood of the parameters
+        :param params: parameters in the MCMC chain
+        :return: log likelihood
         """
         v_rms = self.get_v_rms(params)
         return self.get_kinematic_likelihood(v_rms)
 
     def get_log_probability(self, params):
         """
+        Get the log probability of the parameters
+        :param params: parameters in the MCMC chain
+        :return: log probability
         """
         log_prior = self.get_log_prior(params)
 
@@ -430,6 +486,9 @@ class KinematicLikelihood(object):
 
     def plot_residual(self, params):
         """
+        Plot the residuals of the model
+        :param params: parameters in the MCMC chain
+        :return: None
         """
         v_rms = self.get_v_rms(params)
 
@@ -443,7 +502,7 @@ class KinematicLikelihood(object):
         )
 
         im = plt.matshow((data_v_rms - model_v_rms) / noise_v_rms,
-                    vmax=3, vmin=-3, cmap='RdBu_r'
-                    )
+                         vmax=3, vmin=-3, cmap='RdBu_r'
+                         )
         plt.colorbar(im)
         plt.show()
