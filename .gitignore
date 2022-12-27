@@ -13,3 +13,4 @@ test_notebooks/*
 .idea/*
 kinematic_extraction/.ipynb_checkpoints/*
 kinematic_extraction/__pycache__/*
+Check_MCMC_chains.ipynb

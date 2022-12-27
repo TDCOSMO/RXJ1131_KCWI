@@ -308,7 +308,7 @@ class KinematicLikelihood(object):
 
     def get_anisotropy_prior(self, ani_param):
         """
-        Get the prior of the anisotropy parameter
+        Get uniform prior on the anisotropy parameter
         :param ani_param: anisotropy parameter
         :return: log prior of the anisotropy parameter
         """
@@ -332,8 +332,7 @@ class KinematicLikelihood(object):
                 return -np.inf
             if not 0.5 * 1.91 < ani_param[2] < 100.:
                 return -np.inf
-
-            # return -np.log(ani_param[2])
+            # return -np.log(ani_param[2]) # log uniform prior on the break
 
         return 0.
 
