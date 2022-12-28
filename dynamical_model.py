@@ -667,7 +667,6 @@ class DynamicalModel(object):
     def compute_jampy_v_rms_model(self, lens_params,
                                   cosmo_params,
                                   ani_param,
-                                  # pa=121,
                                   inclination=90,
                                   anisotropy_model='Oskipkov-Merritt',
                                   do_convolve=True,
@@ -709,14 +708,15 @@ class DynamicalModel(object):
 
         lamda, D_dt, D_d = cosmo_params
 
+        # surf_pot is in dimension of convergence
         surf_pot, sigma_pot, qobs_pot = self.get_mass_mge(
             lens_params, lamda,
             is_spherical=is_spherical)
 
-        c2_4piG = 1.6624541593797972e+6
+        c2_over_4piG = 1.6624541593797972e+6
         # the sampled/passed D_dt is true D_dt, so not needed to divide by
         # lamda
-        sigma_crit = c2_4piG * D_dt / D_d ** 2 / (1 + self.Z_L)
+        sigma_crit = c2_over_4piG * D_dt / D_d ** 2 / (1 + self.Z_L)
         surf_pot *= sigma_crit  # from convergence to M_sun / pc^2
 
         bs = self.get_anisotropy_bs(ani_param, surf_lum, sigma_lum,
@@ -736,7 +736,6 @@ class DynamicalModel(object):
         x_grid, y_grid, x_grid_original, y_grid_original = self.get_jam_grid(
             phi, supersampling_factor=supersampling_factor)
 
-        # print(x_grid.shape, y_grid.shape)
         if do_convolve:
             sigma_psf = self.PSF_FWHM / 2.355
         else:
