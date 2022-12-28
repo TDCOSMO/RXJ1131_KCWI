@@ -194,7 +194,8 @@ def get_chain(software, aperture_type, anisotropy_model, is_spherical,
 
 
 def plot_mcmc_trace(software, aperture_type, anisotropy_model, is_spherical,
-                    lens_model_type='powerlaw', snr=23, shape='oblate'):
+                    lens_model_type='powerlaw', snr=23, shape='oblate',
+                    burnin=-50):
     """
     Plot MCMC trace
     :param software: 'jampy' or 'galkin'
@@ -236,7 +237,6 @@ def plot_mcmc_trace(software, aperture_type, anisotropy_model, is_spherical,
 
     fig, ax = plt.subplots(n_params, sharex=True, figsize=(8, 6))
 
-    burnin = -50
     last = n_step
 
     medians = []
@@ -296,10 +296,11 @@ def plot_corner(software, aperture_type, anisotropy_model, is_spherical,
     fig = corner.corner(chain,
                         color=color, labels=labels, scale_hist=False, fig=fig,
                         );
-    if lens_model_type == 'powerlaw':
-        chain[:, 4] = chain[:, 4] / chain[:, 6]
-    else:
-        chain[:, 5] = chain[:, 5] / chain[:, 7]
+
+    # if lens_model_type == 'powerlaw':
+    #     chain[:, 4] = chain[:, 4] / chain[:, 6]
+    # else:
+    #     chain[:, 5] = chain[:, 5] / chain[:, 7]
 
     if plot_init:
         init_pos = get_init_pos(software, aperture_type, anisotropy_model,
@@ -552,6 +553,7 @@ def get_most_likely_value(software, aperture_type, anisotropy_model,
     likelihoods = load_likelihoods(software, aperture_type, anisotropy_model,
                                    is_spherical, lens_model_type, snr, shape)
 
+    print(chain.shape, likelihoods.shape)
     return chain[np.argmax(likelihoods), :]
 
 

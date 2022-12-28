@@ -596,10 +596,13 @@ class DynamicalModel(object):
         y_end = self.Y_GRID[-1, 0] + delta_y / 2. * (1 -
                                                      1 / supersampling_factor)
 
-        xs = np.arange(x_start, x_end + delta_x / (10 + supersampling_factor),
-                       delta_x / supersampling_factor)
-        ys = np.arange(y_start, y_end + delta_y / (10 + supersampling_factor),
-                       delta_y / supersampling_factor)
+        # xs = np.arange(x_start, x_end + delta_x / (10 + supersampling_factor),
+        #                delta_x / supersampling_factor)
+        # ys = np.arange(y_start, y_end + delta_y / (10 + supersampling_factor),
+        #                delta_y / supersampling_factor)
+        n_x, n_y = self.X_GRID.shape
+        xs = np.linspace(x_start, x_end, n_x * supersampling_factor)
+        ys = np.linspace(y_start, y_end, n_y * supersampling_factor)
 
         x_grid_supersampled, y_grid_supersmapled = np.meshgrid(xs, ys)
 
@@ -690,8 +693,8 @@ class DynamicalModel(object):
         Compute the jampy sigma_los for the given lens parameters for deault
         `moment='zz'`. Can be used to compute other moments as well.
         :param lens_params: lens mass model parameters, [theta_E, gamma,
-        q] for power law, ... for composite [kappa_s, r_s, m2l, q]
-        :param cosmo_params: cosmology parameters, [lambda, D_dt/Mpic, D_d/Mpc]
+        q] for power law; [kappa_s, r_s, m2l, q]  for composite
+        :param cosmo_params: cosmology parameters, [lambda, D_dt/Mpc, D_d/Mpc]
         :param ani_param: anisotropy parameters
         :param inclination: inclination, degrees
         :param anisotropy_model: anisotropy model
@@ -709,11 +712,6 @@ class DynamicalModel(object):
         :param shape: axisymmetric shape of the galaxy, 'oblate' or 'prolate'
         :return: velocity moment map, surface brightness map
         """
-        # if self.mass_model == 'powerlaw':
-        #     theta_e, gamma, q = lens_params
-        # else:
-        #     raise ValueError('Other mass models are not supported yet!')
-
         surf_lum, sigma_lum, qobs_lum, pa = self.get_light_mge(
             is_spherical=is_spherical, set_q=q_light)
 
