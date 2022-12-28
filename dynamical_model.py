@@ -728,12 +728,13 @@ class DynamicalModel(object):
         else:
             inc = inclination
 
-        x_grid_spaxel, y_grid_spaxel, _, _ = self.get_jam_grid(phi,
-                                                               supersampling_factor=1)
+        # these grids are in the rotated frame that is passed to jampy
+        x_grid_spaxel, y_grid_spaxel, _, _ = self.get_jam_grid(
+            phi, supersampling_factor=1)
 
+        # thses supersampled grids are used to compute the surface brightness
         x_grid, y_grid, x_grid_original, y_grid_original = self.get_jam_grid(
-            phi,
-            supersampling_factor=supersampling_factor)
+            phi, supersampling_factor=supersampling_factor)
 
         # print(x_grid.shape, y_grid.shape)
         if do_convolve:
@@ -914,7 +915,8 @@ class DynamicalModel(object):
         else:
             return vel_dis_map[0], intensity_map[0]
 
-    def bin_map_in_voronoi_bins(self, vel_dis_map, IR_map, voronoi_bins):
+    @staticmethod
+    def bin_map_in_voronoi_bins(vel_dis_map, IR_map, voronoi_bins):
         """
         Bin a map in Voronoi bins
         :param vel_dis_map: velocity dispersion map
