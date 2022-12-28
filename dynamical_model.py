@@ -573,16 +573,6 @@ class DynamicalModel(object):
         :param supersampling_factor: supersampling factor
         :return: x and y coordinates of the supersampled grid
         """
-        # n_pix = self.X_GRID.shape[0] * oversampling_factor
-        # pix_size = self.PIXEL_SIZE / oversampling_factor
-        #
-        # pix_coordinates = np.arange(n_pix) * pix_size + pix_size / 2.
-        # x_grid, y_grid = np.meshgrid(pix_coordinates, pix_coordinates)
-        #
-        # x_center_pix, y_center_pix = (n_pix - 1) / 2, (n_pix - 1) / 2
-        # x_center_coord = x_center_pix * pix_size + pix_size / 2.
-        # y_center_coord = y_center_pix * pix_size + pix_size / 2.
-
         delta_x = (self.X_GRID[0, 1] - self.X_GRID[0, 0])
         delta_y = (self.Y_GRID[1, 0] - self.Y_GRID[0, 0])
         assert np.abs(delta_x) == np.abs(delta_y)
@@ -610,11 +600,13 @@ class DynamicalModel(object):
 
     def get_jam_grid(self, phi=0., supersampling_factor=1):
         """
-        Get aligned coordinates with major axis for JAM
+        Get supersampled grid that is aligned with major and minor axes of
+        the galaxy for JAM
         :param phi: angle of rotation of the major axis
         :param supersampling_factor: supersampling factor
-        :return: flattened x and y coordinates of the JAM grid, flattened x
-        and y coordinates of the supersampled JAM grid
+        :return: flattened x and y coordinates of the JAM grid aligned with
+        major axis, flattened x and y coordinates of the non-rotated
+        supersampled grid
         """
         x_grid_supersampled, y_grid_supersmapled = \
             self.get_supersampled_grid(
