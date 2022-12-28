@@ -13,7 +13,7 @@ from kinematics_likelihood import KinematicLikelihood
 import emcee
 
 is_cluster = True
-
+resume = False
 #run_name = str(sys.argv[1])
 #run_type = str(sys.argv[2])
 
@@ -71,12 +71,12 @@ elif lens_model_type == 'composite':
 else:
     raise NotImplementedError
 
-walker_ratio = 6
+walker_ratio = 16
 
 if anisotropy_model in ['step', 'free_step']:
     num_steps = 1250
 else:
-    num_steps = 750
+    num_steps = 1500
 
 num_walker = num_param * walker_ratio
 
@@ -121,6 +121,14 @@ if is_cluster:
         if not pool.is_master():
             pool.wait()
             sys.exit(0)
+
+        filename = out_dir + 'kcwi_dynamics_backend_{}_{}_{}_{}_{}_{}_{}.txt'.format(
+                                        software,
+                                        aperture, anisotropy_model, sphericity,
+                                        lens_model_type, snr, shape)
+        backend = emcee.backends.HDFBackend(filename)
+        if not resume:
+            backend.reset(num_walker, num_param)
 
         print(software, anisotropy_model, aperture, sphericity, lens_model_type)
         sampler = emcee.EnsembleSampler(num_walker,

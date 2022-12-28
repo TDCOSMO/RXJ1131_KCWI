@@ -193,6 +193,47 @@ def get_chain(software, aperture_type, anisotropy_model, is_spherical,
     return chain
 
 
+def plot_mcmc_trace_walkers(software, aperture_type, anisotropy_model,
+                            is_spherical, lens_model_type='powerlaw',
+                            snr=23, shape='oblate', burnin=-50):
+    """
+    Plot MCMC trace in the emcee example style
+    :param software: 'jampy' or 'galkin'
+    :param aperture_type: 'ifu' or 'single_slit'
+    :param anisotropy_model: 'consant', 'step', 'free_step', 'Osipkov-Merritt'
+    :param is_spherical: True or False
+    :param lens_model_type: 'powerlaw' or 'composite'
+    :param snr: signal-to-noise ratio per pixel in Voronoi bins
+    :param shape: 'oblate' or 'prolate'
+    :return: None
+    """
+    chain = get_original_chain(software, aperture_type, anisotropy_model, is_spherical,
+                               lens_model_type, snr, shape)
+
+    n_params = chain.shape[2]
+    n_walkers = chain.shape[0]
+    n_step = chain.shape[1]
+    fig, axes = plt.subplots(n_params, figsize=(10, 7), sharex=True)
+
+    if lens_model_type == 'powerlaw':
+        labels = labels_pl
+        latex_labels = latex_labels_pl
+    else:
+        labels = labels_composite
+        latex_labels = latex_labels_composite
+
+    for i in range(n_params):
+        ax = axes[i]
+        print(chain[:, :, i].shape)
+        ax.plot(chain[:, :, i].T, "k", alpha=0.2)
+        ax.set_xlim(0, n_step)
+        ax.set_ylabel(labels[i])
+        ax.yaxis.set_label_coords(-0.1, 0.5)
+
+    axes[-1].set_xlabel("step number");
+    plt.show()
+
+
 def plot_mcmc_trace(software, aperture_type, anisotropy_model, is_spherical,
                     lens_model_type='powerlaw', snr=23, shape='oblate',
                     burnin=-50):
