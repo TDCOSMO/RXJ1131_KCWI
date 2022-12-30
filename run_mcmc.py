@@ -14,6 +14,7 @@ import emcee
 
 is_cluster = True
 resume = False
+load_init_from_file = True
 #run_name = str(sys.argv[1])
 #run_type = str(sys.argv[2])
 
@@ -30,7 +31,7 @@ print(software, anisotropy_model, aperture,
 
 if sphericity == 'spherical':
     is_spherical = True
-elif sphericity == 'axisymmetric':
+else:
     is_spherical = False
 
 if software == 'galkin':
@@ -71,12 +72,12 @@ elif lens_model_type == 'composite':
 else:
     raise NotImplementedError
 
-walker_ratio = 16
+walker_ratio = 12
 
 if anisotropy_model in ['step', 'free_step']:
-    num_steps = 1250
+    num_steps = 2500
 else:
-    num_steps = 1500
+    num_steps = 3000
 
 num_walker = num_param * walker_ratio
 
@@ -122,6 +123,9 @@ if is_cluster:
             pool.wait()
             sys.exit(0)
 
+        print(software, anisotropy_model, aperture, sphericity,
+              lens_model_type)
+
         filename = out_dir + 'kcwi_dynamics_backend_{}_{}_{}_{}_{}_{}_{}.txt'.format(
                                         software,
                                         aperture, anisotropy_model, sphericity,
@@ -130,54 +134,51 @@ if is_cluster:
         if not resume:
             backend.reset(num_walker, num_param)
 
-        print(software, anisotropy_model, aperture, sphericity, lens_model_type)
         sampler = emcee.EnsembleSampler(num_walker,
                                         num_param,
                                         likelihood_function,
-                                        pool=pool
+                                        pool=pool,
+                                        backend=backend
                                         )
+
+        if load_init_from_file:
+            init_pos_saved = np.loadtxt(base_dir + 'init_pos.txt')
+            init_pos = init_pos_saved[:init_pos.shape[0], :init_pos.shape[1]]
 
         sampler.run_mcmc(init_pos, num_steps,
                          progress=False)
-
-        chain = sampler.get_chain(flat=True)
-        likelihood_chain = sampler.get_log_prob(flat=True)
-
-        np.savetxt(out_dir + 'kcwi_dynamics_chain_{}_{}_{}_{}_{}_{}_{}.txt'.format(
-                                        software,
-                                        aperture, anisotropy_model, sphericity,
-                                        lens_model_type, snr, shape),
-                   chain)
-        np.savetxt(
-            out_dir + 'kcwi_dynamics_chain_{}_{}_{}_{}_{}_{}_{}_logL.txt'.format(
-                software,
-                aperture, anisotropy_model, sphericity,
-                lens_model_type, snr, shape),
-            likelihood_chain)
-
-        print('finished computing velocity dispersions', chain.shape)
 else:
+    # for test purpose on local machine
     walker_ratio = 2
     num_steps = 2
 
     sampler = emcee.EnsembleSampler(num_walker,
                                     num_param,
                                     likelihood_class.get_log_prior
+                                    # calling log prior for test purpose
+                                    # because it's fast
                                     )
+
+    if load_init_from_file:
+        init_pos_saved = np.loadtxt(base_dir + 'init_pos.txt')
+        init_pos = init_pos_saved[:init_pos.shape[0], :init_pos.shape[1]]
 
     sampler.run_mcmc(init_pos, num_steps,
                      progress=True)
 
-    chain = sampler.get_chain(flat=True)
-    likelihood_chain = sampler.get_log_prob(flat=True)
+chain = sampler.get_chain(flat=True)
+likelihood_chain = sampler.get_log_prob(flat=True)
 
-    np.savetxt(out_dir+'kcwi_dynamics_chain_{}_{}_{}_{}_{}_{}_{}.txt'.format(
-        software, aperture, anisotropy_model, sphericity, lens_model_type,
-        snr, shape),
-        chain)
-    np.savetxt(out_dir + 'kcwi_dynamics_chain_{}_{}_{}_{}_{}_{}_{}_logL.txt'.format(
-        software, aperture, anisotropy_model, sphericity, lens_model_type,
-        snr, shape),
-        likelihood_chain)
+np.savetxt(out_dir + 'kcwi_dynamics_chain_{}_{}_{}_{}_{}_{}_{}.txt'.format(
+    software,
+    aperture, anisotropy_model, sphericity,
+    lens_model_type, snr, shape),
+           chain)
+np.savetxt(
+    out_dir + 'kcwi_dynamics_chain_{}_{}_{}_{}_{}_{}_{}_logL.txt'.format(
+        software,
+        aperture, anisotropy_model, sphericity,
+        lens_model_type, snr, shape),
+    likelihood_chain)
 
-    print('finished computing velocity dispersions', chain.shape)
+print('finished computing velocity dispersions', chain.shape)

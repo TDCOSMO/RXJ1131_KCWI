@@ -45,8 +45,8 @@ class KinematicLikelihood(object):
         self.velocity_dispersion_mean = None
         self.velocity_dispersion_covariance = None
         if self.aperture_type == 'single_slit':
-            self.velocity_dispersion_mean = 293  # 323 # km/s
-            self.velocity_dispersion_covariance = (20 * 293 / 323) ** 2  # km/s
+            self.velocity_dispersion_mean = 287 # 323 # km/s
+            self.velocity_dispersion_covariance = (20 * self.velocity_dispersion_mean / 323) ** 2  # km/s
             self.velocity_dispersion_inverse_covariance = 1. \
                 / self.velocity_dispersion_covariance
         else:
@@ -312,8 +312,8 @@ class KinematicLikelihood(object):
         :param ani_param: anisotropy parameter
         :return: log prior of the anisotropy parameter
         """
-        low = 0.7  # 0.87
-        hi = 1.23  # 1.12
+        low = 0.75  # 0.87
+        hi = 1.15  # 1.12
         if self.anisotropy_model == 'constant':
             if not low < ani_param < hi:
                 return -np.inf
@@ -386,9 +386,9 @@ class KinematicLikelihood(object):
         else:
             raise ValueError("Lens model type {} not recognized!".format(
                 self.lens_model_type))
-        intrinsic_q_lum = np.sqrt(self.dynamical_model.q_light_2() ** 2 -
-                                  np.cos(inclination * np.pi / 180.) ** 2) \
-                          / np.sin(inclination * np.pi / 180.)
+        intrinsic_q_lum = np.sqrt(self.dynamical_model.LIGHT_PROFILE_MEAN[4]**2
+                                  - np.cos(inclination * np.pi / 180.) ** 2) \
+            / np.sin(inclination * np.pi / 180.)
         if np.isinf(intrinsic_q) or np.isnan(intrinsic_q) or intrinsic_q ** 2 \
                 < 0.1:
             return -np.inf

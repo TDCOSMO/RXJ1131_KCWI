@@ -38,7 +38,7 @@ class DynamicalModel(object):
     Class to compute velocity dispersion in is_spherical symmetry for RXJ 1131.
     """
     # several static values defined as class attributes
-    PSF_FWHM = 0.7  # arcsec
+    PSF_FWHM = 0.98 # arcsec
     PIXEL_SIZE = 0.1457  # KCWI datacube pixel size in arcsec
 
     # x and y coordinates of the KCWI datacube grid
@@ -48,8 +48,12 @@ class DynamicalModel(object):
         np.arange(-3.0597, 3.1597, 0.1457),
     )
 
-    X_CENTER = -(24 - 21.) * PIXEL_SIZE  # 23.5
-    Y_CENTER = (22 - 21.) * PIXEL_SIZE  # 21.5
+    # 23.29, 22.23, from notebook to find center
+    # of galaxy
+    X_CENTER = -(23.29 - 21.) * PIXEL_SIZE  # 23.5
+    Y_CENTER = (22.23 - 21.) * PIXEL_SIZE  # 21.5
+    # X_CENTER = -(24 - 21.) * PIXEL_SIZE  # 23.5
+    # Y_CENTER = (22 - 21.) * PIXEL_SIZE  # 21.5
 
     Z_L = 0.295  # deflector redshift from Agnello et al. (2018)
     Z_S = 0.657  # source redshift from Agnello et al. (2018)
@@ -586,10 +590,6 @@ class DynamicalModel(object):
         y_end = self.Y_GRID[-1, 0] + delta_y / 2. * (1 -
                                                      1 / supersampling_factor)
 
-        # xs = np.arange(x_start, x_end + delta_x / (10 + supersampling_factor),
-        #                delta_x / supersampling_factor)
-        # ys = np.arange(y_start, y_end + delta_y / (10 + supersampling_factor),
-        #                delta_y / supersampling_factor)
         n_x, n_y = self.X_GRID.shape
         xs = np.linspace(x_start, x_end, n_x * supersampling_factor)
         ys = np.linspace(y_start, y_end, n_y * supersampling_factor)

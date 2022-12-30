@@ -16,7 +16,7 @@ from data_util import *
 
 pf.set_fontscale(2.)
 
-walker_ratio = 6
+walker_ratio = 12
 
 labels_pl = ['theta_E', 'gamma', 'q', 'D_dt', 'D_d',
              'inclination', 'lamda',
@@ -140,7 +140,7 @@ def load_likelihoods(software, aperture_type, anisotropy_model, is_spherical,
 
 
 def get_original_chain(software, aperture_type, anisotropy_model, is_spherical,
-              lens_model_type='powerlaw', snr=23, shape='oblate'):
+              lens_model_type='powerlaw', snr=23, shape='oblate', chain=None):
     """
     Get MCMC chain in original 3D shape as [walker, step, parameter]
     :param software: 'jampy' or 'galkin'
@@ -152,8 +152,12 @@ def get_original_chain(software, aperture_type, anisotropy_model, is_spherical,
     :param shape: 'oblate' or 'prolate'
     :return: original MCMC chain
     """
-    samples_mcmc = load_samples_mcmc(software, aperture_type, anisotropy_model, is_spherical,
-                    lens_model_type, snr, shape)
+    if chain is None:
+        samples_mcmc = load_samples_mcmc(software, aperture_type,
+                                         anisotropy_model, is_spherical,
+                                         lens_model_type, snr, shape)
+    else:
+        samples_mcmc = chain
 
     n_params = samples_mcmc.shape[1]
 
@@ -195,7 +199,9 @@ def get_chain(software, aperture_type, anisotropy_model, is_spherical,
 
 def plot_mcmc_trace_walkers(software, aperture_type, anisotropy_model,
                             is_spherical, lens_model_type='powerlaw',
-                            snr=23, shape='oblate', burnin=-50):
+                            snr=23, shape='oblate', burnin=-50,
+                            chain=None
+                            ):
     """
     Plot MCMC trace in the emcee example style
     :param software: 'jampy' or 'galkin'
@@ -207,8 +213,9 @@ def plot_mcmc_trace_walkers(software, aperture_type, anisotropy_model,
     :param shape: 'oblate' or 'prolate'
     :return: None
     """
-    chain = get_original_chain(software, aperture_type, anisotropy_model, is_spherical,
-                               lens_model_type, snr, shape)
+    if chain is None:
+        chain = get_original_chain(software, aperture_type, anisotropy_model,
+                                   is_spherical, lens_model_type, snr, shape)
 
     n_params = chain.shape[2]
     n_walkers = chain.shape[0]
@@ -225,7 +232,7 @@ def plot_mcmc_trace_walkers(software, aperture_type, anisotropy_model,
     for i in range(n_params):
         ax = axes[i]
         print(chain[:, :, i].shape)
-        ax.plot(chain[:, :, i].T, "k", alpha=0.2)
+        ax.plot(chain[:, :, i].T, "k", alpha=0.02)
         ax.set_xlim(0, n_step)
         ax.set_ylabel(labels[i])
         ax.yaxis.set_label_coords(-0.1, 0.5)
@@ -236,7 +243,7 @@ def plot_mcmc_trace_walkers(software, aperture_type, anisotropy_model,
 
 def plot_mcmc_trace(software, aperture_type, anisotropy_model, is_spherical,
                     lens_model_type='powerlaw', snr=23, shape='oblate',
-                    burnin=-50):
+                    burnin=-50, chain=None):
     """
     Plot MCMC trace
     :param software: 'jampy' or 'galkin'
@@ -248,8 +255,9 @@ def plot_mcmc_trace(software, aperture_type, anisotropy_model, is_spherical,
     :param shape: 'oblate' or 'prolate'
     :return: None
     """
-    chain = get_original_chain(software, aperture_type, anisotropy_model, is_spherical,
-                      lens_model_type, snr, shape)
+    if chain is None:
+        chain = get_original_chain(software, aperture_type, anisotropy_model,
+                                   is_spherical, lens_model_type, snr, shape)
 
     n_params = chain.shape[2]
     n_walkers = chain.shape[0]
@@ -334,9 +342,8 @@ def plot_corner(software, aperture_type, anisotropy_model, is_spherical,
                       lens_model_type, snr, shape, burnin=burnin
                       )
 
-    fig = corner.corner(chain,
-                        color=color, labels=labels, scale_hist=False, fig=fig,
-                        );
+    fig = corner.corner(chain, color=color, labels=labels, scale_hist=False,
+                        fig=fig);
 
     # if lens_model_type == 'powerlaw':
     #     chain[:, 4] = chain[:, 4] / chain[:, 6]
@@ -587,14 +594,14 @@ def get_most_likely_value(software, aperture_type, anisotropy_model,
     :param shape: shape of the galaxy axisymmetry, 'oblate' or 'prolate'
     :param burnin: number of burn-in steps
     """
-    chain = get_chain(software, aperture_type, anisotropy_model,
-                      is_spherical, lens_model_type, snr, shape,
-                      burnin=0)
-    
+    chain = load_samples_mcmc(software, aperture_type, anisotropy_model,
+                              is_spherical, lens_model_type, snr, shape)
+
     likelihoods = load_likelihoods(software, aperture_type, anisotropy_model,
                                    is_spherical, lens_model_type, snr, shape)
 
     print(chain.shape, likelihoods.shape)
+    print(np.argmax(likelihoods))
     return chain[np.argmax(likelihoods), :]
 
 

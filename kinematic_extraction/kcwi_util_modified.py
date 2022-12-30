@@ -209,8 +209,6 @@ def ppxf_kinematics_RXJ1131_getGlobal_lens_deredshift(libary_dir, degree,
         # any meaning
         print('no sky spectrum (i.e., no quasar)')
 
-
-
     # Read the list of filenames from Xshooter library
     if templates_name == 'xshooter':
         if temp_array is None:
@@ -543,7 +541,6 @@ def poisson_noise(T_exp, gal_lin, std_bk_noise, per_second=False):
     :param per_second: set True if it is in the unit of counts/second
     :return: poisson noise
     '''
-
     const = std_bk_noise**2
     if per_second:
         scale= 1/T_exp
@@ -839,6 +836,8 @@ def select_region(dir, origin_imaging_data_perAA, SN_per_AA, SN_x_center,
     plt.axis('off')
     plt.colorbar()
     plt.show()
+
+    return mask
 
 
 def get_voronoi_binning_data(dir, name, name1):
