@@ -75,9 +75,9 @@ else:
 walker_ratio = 12
 
 if anisotropy_model in ['step', 'free_step']:
-    num_steps = 2500
+    num_steps = 1500
 else:
-    num_steps = 3000
+    num_steps = 1000
 
 num_walker = num_param * walker_ratio
 

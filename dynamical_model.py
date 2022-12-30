@@ -38,7 +38,7 @@ class DynamicalModel(object):
     Class to compute velocity dispersion in is_spherical symmetry for RXJ 1131.
     """
     # several static values defined as class attributes
-    PSF_FWHM = 0.98 # arcsec
+    PSF_FWHM = 0.96 # arcsec
     PIXEL_SIZE = 0.1457  # KCWI datacube pixel size in arcsec
 
     # x and y coordinates of the KCWI datacube grid
@@ -48,10 +48,9 @@ class DynamicalModel(object):
         np.arange(-3.0597, 3.1597, 0.1457),
     )
 
-    # 23.29, 22.23, from notebook to find center
-    # of galaxy
-    X_CENTER = -(23.29 - 21.) * PIXEL_SIZE  # 23.5
-    Y_CENTER = (22.23 - 21.) * PIXEL_SIZE  # 21.5
+    # 23.29, 22.23, from notebook to find center of galaxy
+    X_CENTER = -(23.29 - 21.) * PIXEL_SIZE
+    Y_CENTER = (22.23 - 21.) * PIXEL_SIZE
     # X_CENTER = -(24 - 21.) * PIXEL_SIZE  # 23.5
     # Y_CENTER = (22 - 21.) * PIXEL_SIZE  # 21.5
 
@@ -362,7 +361,7 @@ class DynamicalModel(object):
         :param is_spherical: bool, if True, will return kwargs for spherical case
         :return: surf_mass, sigma_mass, qobs_mass
         """
-        lens_cosmo = LensCosmo(z_lens=self.Z_L, z_source=self.Z_S)
+        # lens_cosmo = LensCosmo(z_lens=self.Z_L, z_source=self.Z_S)
         # 'q','$\theta_{E}$','$\gamma$','$\theta_{E,satellite}$','$\gamma_{ext}$','$\theta_{ext}$'
 
         if self.mass_model == 'powerlaw':
@@ -850,8 +849,8 @@ class DynamicalModel(object):
         if do_convolve:
             sigma = self.PSF_FWHM / 2.355 / self.PIXEL_SIZE * supersampling_factor
             kernel = Gaussian2DKernel(x_stddev=sigma,
-                                      x_size=7 * int(sigma) + 1,
-                                      y_size=7 * int(sigma) + 1)
+                                      x_size=6*int(sigma)+1,
+                                      y_size=6*int(sigma)+1)
 
             convolved_flux = convolve(flux, kernel)
             # convolved_map = convolve(flux * vel_dis_map ** 2, kernel)
