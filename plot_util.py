@@ -677,10 +677,9 @@ def plot_residual(software, aperture_type, anisotropy_model, sphericity,
     fig = plt.figure(figsize=(15, 5))
     ax = fig.add_subplot(131)
     
-    im = ax.imshow(data_v_rms[9:36, 11:38],
-                    #vmax=vmax, vmin=vmin, 
-                      cmap=cmap, origin='lower',
-                      norm=norm)
+    im = ax.imshow(data_v_rms[11:34, 12:35],
+                   cmap=cmap, origin='lower',
+                   norm=norm)
     
     ax.set_aspect('equal')
     
@@ -693,11 +692,9 @@ def plot_residual(software, aperture_type, anisotropy_model, sphericity,
     axes.append(ax)
     
     ax = fig.add_subplot(132)
-    #im = ax.matshow(v_rms_map[9:36, 11:38],
-    im = ax.imshow(v_rms_map[9:36, 11:38],
-                    #vmax=vmax, vmin=vmin, 
-                      cmap=cmap, origin='lower',
-                      norm=norm)
+    im = ax.imshow(v_rms_map[11:34, 12:35],
+                   cmap=cmap, origin='lower',
+                   norm=norm)
     ax.set_aspect('equal')
     
     divider = make_axes_locatable(ax)
@@ -709,7 +706,7 @@ def plot_residual(software, aperture_type, anisotropy_model, sphericity,
     axes.append(ax)                 
     
     ax = fig.add_subplot(133)
-    im = ax.matshow(((data_v_rms - model_v_rms) / noise_v_rms)[9:36, 11:38],
+    im = ax.matshow(((data_v_rms - model_v_rms) / noise_v_rms)[11:34, 12:35],
                     vmax=3, vmin=-3, cmap='RdBu_r', origin='lower'
                     )
     divider = make_axes_locatable(ax)
