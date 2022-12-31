@@ -13,8 +13,8 @@ from kinematics_likelihood import KinematicLikelihood
 import emcee
 
 is_cluster = True
-resume = False
-load_init_from_file = True
+resume = True
+load_init_from_file = False
 #run_name = str(sys.argv[1])
 #run_type = str(sys.argv[2])
 
@@ -106,7 +106,10 @@ init_pos = np.concatenate((
 
 # divide lens model predicted D_dt by lambda array as the sampled D_dt is
 # taken as the true D_dt
-init_pos[:, 3] /= init_pos[:, -2]
+if lens_model_type == 'powerlaw':
+    init_pos[:, 3] /= init_pos[:, -2]
+else:
+    init_pos[:, 4] /= init_pos[:, -2]
 
 
 def likelihood_function(params):
@@ -143,7 +146,12 @@ if is_cluster:
 
         if load_init_from_file:
             init_pos_saved = np.loadtxt(base_dir + 'init_pos.txt')
-            init_pos = init_pos_saved[:init_pos.shape[0], :init_pos.shape[1]]
+            if lens_model_type == 'powerlaw':
+                init_pos = init_pos_saved[:init_pos.shape[0], :init_pos.shape[1]]
+            else:
+                init_pos[:, 4:] = init_pos_saved[:init_pos.shape[0],
+                                  3:init_pos.shape[1]-1]
+
 
         sampler.run_mcmc(init_pos, num_steps,
                          progress=False)
