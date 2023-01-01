@@ -133,16 +133,6 @@ if is_cluster:
                                         software,
                                         aperture, anisotropy_model, sphericity,
                                         lens_model_type, snr, shape)
-        backend = emcee.backends.HDFBackend(filename)
-        if not resume:
-            backend.reset(num_walker, num_param)
-
-        sampler = emcee.EnsembleSampler(num_walker,
-                                        num_param,
-                                        likelihood_function,
-                                        pool=pool,
-                                        backend=backend
-                                        )
 
         if load_init_from_file:
             init_pos_saved = np.loadtxt(base_dir + 'init_pos.txt')
@@ -152,6 +142,18 @@ if is_cluster:
                 init_pos[:, 4:] = init_pos_saved[:init_pos.shape[0],
                                   3:init_pos.shape[1]-1]
 
+        backend = emcee.backends.HDFBackend(filename)
+        if not resume:
+            backend.reset(num_walker, num_param)
+        else:
+            init_pos = backend.get_last_sample()
+
+        sampler = emcee.EnsembleSampler(num_walker,
+                                        num_param,
+                                        likelihood_function,
+                                        pool=pool,
+                                        backend=backend
+                                        )
 
         sampler.run_mcmc(init_pos, num_steps,
                          progress=False)

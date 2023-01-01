@@ -424,18 +424,21 @@ def ppxf_kinematics_RXJ1131_getGlobal_lens_deredshift(libary_dir, degree,
     start = [vel, 250.]  # (km/s), starting guess for [V, sigma]
     t = clock()
     if quasar_spectrum is not None:
+        print('shapes', galaxy.shape, noise.shape)
+        print('noise 1', noise)
         if galaxy.shape != noise.shape:
             if noise.shape[0]>galaxy.shape[0]:
                 noise = noise[:galaxy.shape[0]]
             elif noise.shape[0]<galaxy.shape[0]:
                 noise = np.array(noise.tolist() + np.ones(galaxy.shape[0]-noise.shape[0]).tolist())
-                
+        print('noise 2', noise)
         pp = ppxf(templates, galaxy, noise, velscale, start, plot=plot,
                   moments=2, goodpixels=mask,
                   degree=degree, vsyst=dv, velscale_ratio=velscale_ratio,
                   sky=quasar, lam=lam, quiet=quiet)
         plt.xlim(wave_min, wave_max)
     else:
+        print('noise 3', noise)
         pp = ppxf(templates, galaxy, noise, velscale, start, plot=plot,
                   moments=2, goodpixels=mask,
                   degree=degree, vsyst=dv, velscale_ratio=velscale_ratio,

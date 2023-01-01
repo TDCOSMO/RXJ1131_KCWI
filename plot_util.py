@@ -1,14 +1,9 @@
-import numpy as np
-import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from astropy.cosmology import FlatLambdaCDM
-import copy
 import corner
-import matplotlib.colors as colors
 from getdist import plots
 from getdist import MCSamples
-import seaborn as sns
-import palettable
+import emcee
 
 import paperfig as pf
 from kinematics_likelihood import KinematicLikelihood
@@ -25,10 +20,10 @@ labels_pl = ['theta_E', 'gamma', 'q', 'D_dt', 'D_d',
 latex_labels_pl = ['{\\theta}_{\\rm E} \ (^{\prime\prime})',
                    '{\\gamma}',
                    'q', #'{\\rm PA} {\ (^{\circ})}',
-                   'D_{\\Delta t}^{\prime}\ ({\\rm Mpc})',
+                   'D_{\\Delta t}\ ({\\rm Mpc})',
                    '{\\rm blinded}\ D_{\\rm d}',
                    'i {\ (^{\circ})}',
-                   '{\\lambda}',
+                   '{\\lambda}_{\\rm MST}',
                    'a_{\\rm ani,1}', 'a_{\\rm ani,2}', 'a_{\\rm ani,3}'
                    ]
 
@@ -40,7 +35,7 @@ latex_labels_composite = ['{\\kappa}_{\\rm s}',
                           'r_{\\rm scale}\ (^{\prime\prime})',
                           'M/L\ (M_{\\odot}/L_{\\odot})',
                           'q', #'{\\rm PA} {\ (^{\circ})}',
-                          'D_{\\Delta t}^{\prime}\ ({\\rm Mpc})',
+                          'D_{\\Delta t}\ ({\\rm Mpc})',
                           '{\\rm blinded}\ D_{\\rm d}',
                           'i {\ (^{\circ})}',
                           '{\\lambda}',
@@ -118,10 +113,31 @@ def load_samples_mcmc(software, aperture_type, anisotropy_model, is_spherical,
     )
 
 
-def load_likelihoods(software, aperture_type, anisotropy_model, is_spherical,
+def get_emcee_backend(software, aperture_type, anisotropy_model, is_spherical,
             lens_model_type='powerlaw', snr=23, shape='oblate'):
     """
-    Load likelihoods from file
+    Get emcee backend
+    :param software: 'jampy' or 'galkin'
+    :param aperture_type: 'ifu' or 'single_slit'
+    :param anisotropy_model: 'consant', 'step', 'free_step', 'Osipkov-Merritt'
+    :param is_spherical: True or False
+    :param lens_model_type: 'powerlaw' or 'composite'
+    :param snr: signal-to-noise ratio per pixel in Voronoi bins
+    :param shape: 'oblate' or 'prolate'
+    :return: emcee backend
+    """
+    filename = '../dynamics_chains/kcwi_dynamics_backend_{}_{}_{}_{}_{}_{}_{}.txt'\
+        .format(software, aperture_type, anisotropy_model,
+                str(is_spherical), lens_model_type, snr, shape
+        )
+
+    return emcee.backends.HDFBackend(filename, read_only=True)
+
+
+def get_likelihoods(software, aperture_type, anisotropy_model, is_spherical,
+            lens_model_type='powerlaw', snr=23, shape='oblate'):
+    """
+    Get likelihoods of the emcee chain
     :param software: 'jampy' or 'galkin'
     :param aperture_type: 'ifu' or 'single_slit'
     :param anisotropy_model: 'consant', 'step', 'free_step', 'Osipkov-Merritt'
@@ -131,16 +147,23 @@ def load_likelihoods(software, aperture_type, anisotropy_model, is_spherical,
     :param shape: 'oblate' or 'prolate'
     :return: likelihoods
     """
-    return np.loadtxt(
-        '../dynamics_chains/kcwi_dynamics_chain_{}_{}_{}_{}_{}_{}_{}_logL.txt'.format(
-            software, aperture_type, anisotropy_model, str(is_spherical),
-            lens_model_type, snr, shape
-        )
-    )
+    # return np.loadtxt(
+    #     '../dynamics_chains/kcwi_dynamics_chain_{}_{}_{}_{}_{}_{}_{}_logL.txt'.format(
+    #         software, aperture_type, anisotropy_model, str(is_spherical),
+    #         lens_model_type, snr, shape
+    #     )
+    # )
+    reader = get_emcee_backend(software, aperture_type, anisotropy_model,
+                               is_spherical, lens_model_type, snr, shape)
+
+    likelihoods = reader.get_log_prob(flat=False)
+    likelihoods = np.swapaxes(likelihoods, 0, 1)
+
+    return likelihoods
 
 
 def get_original_chain(software, aperture_type, anisotropy_model, is_spherical,
-              lens_model_type='powerlaw', snr=23, shape='oblate', chain=None):
+              lens_model_type='powerlaw', snr=23, shape='oblate'):
     """
     Get MCMC chain in original 3D shape as [walker, step, parameter]
     :param software: 'jampy' or 'galkin'
@@ -152,25 +175,11 @@ def get_original_chain(software, aperture_type, anisotropy_model, is_spherical,
     :param shape: 'oblate' or 'prolate'
     :return: original MCMC chain
     """
-    if chain is None:
-        samples_mcmc = load_samples_mcmc(software, aperture_type,
-                                         anisotropy_model, is_spherical,
-                                         lens_model_type, snr, shape)
-    else:
-        samples_mcmc = chain
+    reader = get_emcee_backend(software, aperture_type, anisotropy_model,
+                               is_spherical, lens_model_type, snr, shape)
 
-    n_params = samples_mcmc.shape[1]
-
-    n_walkers = walker_ratio * n_params
-    n_step = int(samples_mcmc.shape[0] / n_walkers)
-
-    # print('N_step: {}, N_walkers: {}, N_params: {}'.format(n_step, n_walkers, n_params))
-
-    chain = np.empty((n_walkers, n_step, n_params))
-
-    for i in np.arange(n_params):
-        samples = samples_mcmc[:, i].T
-        chain[:, :, i] = samples.reshape((n_step, n_walkers)).T
+    chain = reader.get_chain(flat=False)
+    chain = np.swapaxes(chain, 0, 1)
 
     return chain
 
@@ -190,8 +199,8 @@ def get_chain(software, aperture_type, anisotropy_model, is_spherical,
     :return: 2d MCMC chain after burnin
     """
     chain = get_original_chain(software, aperture_type, anisotropy_model,
-                               is_spherical, lens_model_type, snr=snr,
-                               shape=shape)
+                               is_spherical, lens_model_type, snr, shape)
+
     chain = chain[:, burnin:, :].reshape((-1, chain.shape[-1]))
     
     return chain
@@ -232,7 +241,7 @@ def plot_mcmc_trace_walkers(software, aperture_type, anisotropy_model,
     for i in range(n_params):
         ax = axes[i]
         print(chain[:, :, i].shape)
-        ax.plot(chain[:, :, i].T, "k", alpha=0.02)
+        ax.plot(chain[:, :, i].T, "k", alpha=0.05)
         ax.set_xlim(0, n_step)
         ax.set_ylabel(labels[i])
         ax.yaxis.set_label_coords(-0.1, 0.5)
@@ -419,8 +428,8 @@ def get_getdist_samples(software, aperture_type, anisotropy_model,
     else:
         d_index = 5
 
-    chain[:, d_index+2] = chain[:, d_index+2] * D_s / D_ds
-    chain[:, d_index] = chain[:, d_index] / chain[:, d_index+2] / (1. + Z_L)
+    # chain[:, d_index+2] = chain[:, d_index+2] * D_s / D_ds
+    # chain[:, d_index] = chain[:, d_index] / chain[:, d_index+2] / (1. + Z_L)
 
     if blind_D is None:
         mean_D = np.median(chain[:, d_index])
@@ -439,7 +448,11 @@ def get_getdist_samples(software, aperture_type, anisotropy_model,
     if select_indices is None:
         mc_samples = MCSamples(samples=chain,
                                names=labels[:chain.shape[-1]],
-                               labels=latex_labels[:chain.shape[-1]]
+                               labels=latex_labels[:chain.shape[-1]],
+                               settings={'mult_bias_correction_order': 0,
+                                         'smooth_scale_2D': 1,
+                                         'smooth_scale_1D': 1
+                                         },
                                )
     else:
         labels = labels[:chain.shape[-1]]
@@ -447,7 +460,11 @@ def get_getdist_samples(software, aperture_type, anisotropy_model,
         print(chain.shape, len(labels))
         mc_samples = MCSamples(samples=chain[:, select_indices],
                                names=np.array(labels)[select_indices],
-                               labels=np.array(latex_labels)[select_indices]
+                               labels=np.array(latex_labels)[select_indices],
+                               settings={'mult_bias_correction_order': 0,
+                                         'smooth_scale_2D': .45,
+                                         'smooth_scale_1D': .45
+                                         },
                                )
 
 #     if blind_D is True:
@@ -548,10 +565,10 @@ def plot_dist(softwares, aperture_types, anisotropy_models, is_sphericals,
     g.settings.solid_contour_palefactor = 0.5
     g.settings.axes_fontsize = 16 * font_scale
     g.settings.lab_fontsize = 16 * font_scale
-
+    # g.settings.norm_1d_density = False
     g.settings.legend_fontsize = 18 * font_scale
-    # g.settings.smooth_scale_2D = 4
-    # g.settings.smooth_scale_1D = 4
+    # g.settings.smooth_scale_2D = 0.3
+    # g.settings.smooth_scale_1D = 0.3
 
     colors = [pf.cb2_blue, pf.cb2_orange, pf.cb2_emerald, pf.cb_grey]
 
@@ -567,6 +584,10 @@ def plot_dist(softwares, aperture_types, anisotropy_models, is_sphericals,
                     # line_args={'lw': 7., "zorder": 30},
                     # line_args={'lw': 1., 'alpha': 1.}
                     contour_colors=colors,
+                    param_limits={'inclination': (50, 130),
+                                  'ani_param_1': (0.75, 1.15),
+                                  'ani_param_2': (0.75, 1.15),
+                                 }
                     #                     param_limits={'dphi_AB': (-0.45, 0.15),
                     #                                   'dphi_AC': (-0.45, 0.15),
                     #                                   'dphi_AD': (-0.45, 0.15),
@@ -577,6 +598,8 @@ def plot_dist(softwares, aperture_types, anisotropy_models, is_sphericals,
     if save_fig is not None:
         g.fig.savefig(save_fig,
                       bbox_inches='tight')
+
+    return g
         
 
 def get_most_likely_value(software, aperture_type, anisotropy_model,
@@ -594,15 +617,20 @@ def get_most_likely_value(software, aperture_type, anisotropy_model,
     :param shape: shape of the galaxy axisymmetry, 'oblate' or 'prolate'
     :param burnin: number of burn-in steps
     """
-    chain = load_samples_mcmc(software, aperture_type, anisotropy_model,
-                              is_spherical, lens_model_type, snr, shape)
+    # chain = load_samples_mcmc(software, aperture_type, anisotropy_model,
+    #                           is_spherical, lens_model_type, snr, shape)
+    #
+    # likelihoods = load_likelihoods(software, aperture_type, anisotropy_model,
+    #                                is_spherical, lens_model_type, snr, shape)
 
-    likelihoods = load_likelihoods(software, aperture_type, anisotropy_model,
-                                   is_spherical, lens_model_type, snr, shape)
+    chain = get_original_chain(software, aperture_type, anisotropy_model,
+                               is_spherical, lens_model_type, snr, shape)
+    likelihoods = get_likelihoods(software, aperture_type, anisotropy_model,
+                                  is_spherical, lens_model_type, snr, shape)
 
-    print(chain.shape, likelihoods.shape)
-    print(np.argmax(likelihoods))
-    return chain[np.argmax(likelihoods), :]
+    indices = np.where(likelihoods == np.max(likelihoods))
+
+    return chain[indices[0][0], indices[1][0], :]
 
 
 def plot_residual(software, aperture_type, anisotropy_model, sphericity,
