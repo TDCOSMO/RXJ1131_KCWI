@@ -351,18 +351,25 @@ class DynamicalModel(object):
 
         return surf_lum, sigma_lum, qobs_lum, params[3]
 
-    def get_mass_mge(self, lens_params, lamda=1,
-                     is_spherical=False
+    def get_mass_mge(self, lens_params, lambda_int=1,
+                     kappa_ext=0,
+                     is_spherical=False,
+                     plot=False,
+                     r_c_mult=3.
                      ):
         """
         Get MGE of the mass profile
         :param lens_params: array, lens parameters
-        :param lamda: float, MST parameter
+        :param lambda_int: float, MST parameter
+        :param kappa_ext: float, external convergence
         :param is_spherical: bool, if True, will return kwargs for spherical case
+        :param plot: bool, if True, will plot the MGE fitting for testing
+        :param r_c_mult: float, multiple of the Einstein radius to use as
+        the core radius
         :return: surf_mass, sigma_mass, qobs_mass
         """
-        # lens_cosmo = LensCosmo(z_lens=self.Z_L, z_source=self.Z_S)
-        # 'q','$\theta_{E}$','$\gamma$','$\theta_{E,satellite}$','$\gamma_{ext}$','$\theta_{ext}$'
+        # core radius for approximate MST
+        r_c = r_c_mult * 1.64
 
         if self.mass_model == 'powerlaw':
             theta_e, gamma, q = lens_params
@@ -381,7 +388,8 @@ class DynamicalModel(object):
 
             mass_r = lens_model.kappa(r_array, r_array * 0, kwargs_lens)
 
-            mass_r = lamda * mass_r + 1 - lamda
+            mass_r = (1 - kappa_ext) * (lambda_int * mass_r
+                     + (1. - lambda_int) * r_c ** 2 / (r_c**2 + r_array**2))
 
             # amps, sigmas, _ = mge.mge_1d(r_array, mass_r, N=20)
             mass_mge = mge_fit_1d(r_array, mass_r, ngauss=self._n_gauss,
@@ -450,11 +458,16 @@ class DynamicalModel(object):
             #                                         kwargs_baryon_2)
 
             # amps, sigmas, _ = mge.mge_1d(r_array, mass_r, N=20)
-            mass_nfw = lamda * mass_nfw + 1 - lamda
-            # we already know baryon surface density profile, so not doing
-            # MST on them.
-            mass_baryon_1 = lamda * mass_baryon_1 + 1 - lamda
-            mass_baryon_2 = lamda * mass_baryon_2 + 1 - lamda
+
+            mass_nfw = lambda_int * mass_nfw + (1. - lambda_int) * r_c ** 2 / (
+                    r_c**2 + r_array**2)
+            mass_nfw = (1 - kappa_ext) * mass_nfw
+
+            mass_baryon_1 = lambda_int * mass_baryon_1
+            mass_baryon_1 = (1 - kappa_ext) * mass_baryon_1
+
+            mass_baryon_2 = lambda_int * mass_baryon_2
+            mass_baryon_2 = (1 - kappa_ext) * mass_baryon_2
 
             mass_mge_nfw = mge_fit_1d(r_array, mass_nfw, ngauss=self._n_gauss,
                                       quiet=True,
@@ -479,6 +492,26 @@ class DynamicalModel(object):
                 np.ones_like(mass_mge_nfw.sol[0]) * q_nfw,
                 np.ones_like(mass_mge_baryon_1.sol[0]) * 0.882587,
                 np.ones_like(mass_mge_baryon_2.sol[0]) * 0.847040))
+
+        if plot:
+            plt.figure()
+            if self.mass_model == 'composite':
+                mass_r = mass_nfw + mass_baryon_1 + mass_baryon_2
+                plt.loglog(r_array, mass_nfw, 'b--', label='NFW')
+                mge = 0.
+                for a, s in zip(mass_mge_nfw.sol[0], mass_mge_nfw.sol[1]):
+                    mge += a / np.sqrt(2*np.pi*s**2) * np.exp(
+                        -r_array ** 2 / (2 * s ** 2))
+                plt.loglog(r_array, mge, 'r--', label='NFW MGE')
+
+            plt.loglog(r_array, mass_r, 'b', label='total')
+            mge = 0
+            for a, s in zip(amps, sigmas):
+                mge += a * np.exp(
+                    -r_array ** 2 / (2 * s ** 2))
+            plt.loglog(r_array, mge, 'r', label='total MGE')
+            plt.legend()
+            plt.show()
 
         surf_pot = amps  # lens_cosmo.kappa2proj_mass(amps) / 1e12 # M_sun/pc^2
         sigma_pot = sigmas
@@ -705,16 +738,16 @@ class DynamicalModel(object):
         surf_lum, sigma_lum, qobs_lum, pa = self.get_light_mge(
             is_spherical=is_spherical, set_q=q_light)
 
-        lamda, D_dt, D_d = cosmo_params
+        lambda_int, kappa_ext, D_dt, D_d = cosmo_params
 
         # surf_pot is in dimension of convergence
         surf_pot, sigma_pot, qobs_pot = self.get_mass_mge(
-            lens_params, lamda,
+            lens_params, lambda_int, kappa_ext,
             is_spherical=is_spherical)
 
         c2_over_4piG = 1.6624541593797972e+6
-        # the sampled/passed D_dt is true D_dt, so not needed to divide by
-        # lamda
+        # the passed D_dt is true D_dt, so not needed to divide by
+        # lambda_int
         sigma_crit = c2_over_4piG * D_dt / D_d ** 2 / (1 + self.Z_L)
         surf_pot *= sigma_crit  # from convergence to M_sun / pc^2
 

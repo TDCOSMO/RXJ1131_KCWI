@@ -1,8 +1,5 @@
-import numpy as np
-import matplotlib.pyplot as plt
-import h5py as h5
 from scipy.interpolate import interp1d
-import pickle
+from scipy.stats import gaussian_kde
 
 from dynamical_model import DynamicalModel
 from data_util import *
@@ -73,6 +70,10 @@ class KinematicLikelihood(object):
             )
         else:
             self.galkin_kinematics_api = None
+
+        self.kappa_ext_array = np.loadtxt('./data_products/hst_imaging_and'
+                                          '_lens_model_products/kappa_powerlaw_rxj.dat')
+        self.kappa_ext_kde = gaussian_kde(self.kappa_ext_array)
 
     def get_galkin_velocity_dispersion(self, theta_e, gamma, ani_param):
         """
@@ -174,6 +175,14 @@ class KinematicLikelihood(object):
         # self.voronoi_bin_mapping[self.voronoi_bin_mapping < 0] = np.nan
 
         return voronoi_bin_mapping
+
+    def get_kappa_ext_prior(self, kappa_ext):
+        """
+        Get the prior for kappa_ext
+        :param kappa_ext: external convergence
+        :return: prior
+        """
+        return self.kappa_ext_kde(kappa_ext)
 
     def get_intrinsic_q_prior(self, intrinsic_q):
         """
@@ -342,8 +351,8 @@ class KinematicLikelihood(object):
         :param params: parameters
         """
         if self.lens_model_type == 'powerlaw':
-            theta_e, gamma, q, D_dt, D_d, inclination, lamda, *ani_param = \
-                params
+            theta_e, gamma, q, D_dt_model, inclination, \
+            kappa_ext, lamda_int, D_d, *ani_param = params
 
             if not 1.0 < theta_e < 2.2:
                 return -np.inf
@@ -351,11 +360,11 @@ class KinematicLikelihood(object):
             if not 1.5 < gamma < 2.5:
                 return -np.inf
 
-            lens_model_params = np.array([theta_e, gamma, q, D_dt * lamda])
+            lens_model_params = np.array([theta_e, gamma, q, D_dt_model])
         elif self.lens_model_type == 'composite':
-            kappa_s, r_s, m2l, q, D_dt, D_d, inclination, lamda, *ani_param = \
-                params
-            lens_model_params = np.array([kappa_s, r_s, m2l, q, D_dt * lamda])
+            kappa_s, r_s, m2l, q, D_dt_model, inclination, \
+            kappa_ext, lamda_int, D_d, *ani_param = params
+            lens_model_params = np.array([kappa_s, r_s, m2l, q, D_dt_model])
         else:
             raise NotImplementedError
 
@@ -365,13 +374,29 @@ class KinematicLikelihood(object):
         if not 0.5 < q < 0.99:
             return -np.inf
 
+        if not 1000. < D_dt_model < 3000.:
+            return -np.inf
+
         # if not 70 < pa < 170:
         #     return -np.inf
+
+        if not 0 < inclination < 180:
+            return -np.inf
 
         if inclination > 90:
             inclination = 180 - inclination
 
-        if not 0 < inclination < 180:
+        if self.lens_model_type == 'powerlaw':
+            if not 0.5 < lamda_int < 1.3:
+                return -np.inf
+        elif self.lens_model_type == 'composite':
+            if not 0.5 < lamda_int < 1.4:
+                return -np.inf
+
+        if not -0.1 < kappa_ext < 0.4:
+            return -np.inf
+
+        if not 500 < D_d < 1300:
             return -np.inf
 
         if self.lens_model_type == 'powerlaw':
@@ -397,12 +422,10 @@ class KinematicLikelihood(object):
                 intrinsic_q_lum ** 2 < 0.1:
             return -np.inf
 
-        if not 0. < lamda < 2.:
-            return -np.inf
-
         return self.get_anisotropy_prior(ani_param) + \
                self.get_lens_model_likelihood(lens_model_params) + \
-               self.get_intrinsic_q_prior(intrinsic_q_lum)
+               self.get_intrinsic_q_prior(intrinsic_q_lum) + \
+               self.get_kappa_ext_prior(kappa_ext)
 
     def get_v_rms(self, params):
         """
@@ -411,17 +434,19 @@ class KinematicLikelihood(object):
         :return: RMS velocity
         """
         if self.lens_model_type == 'powerlaw':
-            theta_e, gamma, q, D_dt, D_d, inclination, lamda, *ani_param = \
-                params
+            theta_e, gamma, q, D_dt_model, inclination, \
+            kappa_ext, lamda_int, D_d, *ani_param = params
             lens_params = [theta_e, gamma, q]
         elif self.lens_model_type == 'composite':
-            kappa_s, r_s, m2l, q, D_dt, D_d, inclination, lamda, *ani_param = \
-                params
+            kappa_s, r_s, m2l, q, D_dt_model, inclination, \
+            kappa_ext, lamda_int, D_d, *ani_param = params
             lens_params = [kappa_s, r_s, m2l, q]
         else:
             raise ValueError('lens model type not recognized!')
 
-        cosmo_params = [lamda, D_dt, D_d]
+        cosmo_params = [lamda_int, kappa_ext,
+                        D_dt_model / (1.-kappa_ext) / lamda_int,
+                        D_d]
 
         if len(ani_param) == 1:
             ani_param = ani_param[0]

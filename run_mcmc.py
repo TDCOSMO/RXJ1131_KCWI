@@ -14,7 +14,7 @@ import emcee
 
 is_cluster = True
 resume = True
-load_init_from_file = False
+# load_init_from_file = False
 #run_name = str(sys.argv[1])
 #run_type = str(sys.argv[2])
 
@@ -48,15 +48,15 @@ else:
     out_dir = '/u/scratch/a/ajshajib/RXJ1131_kinematics_chains/'
 
 if anisotropy_model == 'step':
-    additional_ani_param_num = 1
+    ani_param_num = 2
     ani_param_init_mean = [1, 1]
     ani_param_init_sigma = [0.05, 0.05]
 elif anisotropy_model == 'free_step':
-    additional_ani_param_num = 2
+    ani_param_num = 3
     ani_param_init_mean = [1., 1, 30]
     ani_param_init_sigma = [0.05, 0.05, 10]
 else:
-    additional_ani_param_num = 0
+    ani_param_num = 1
     ani_param_init_mean = [.85]
     ani_param_init_sigma = [0.05]
 
@@ -66,9 +66,9 @@ else:
     anisotropy_type = anisotropy_model
 
 if lens_model_type == 'powerlaw':
-    num_param = 8 + additional_ani_param_num
+    num_param = 8 + ani_param_num
 elif lens_model_type == 'composite':
-    num_param = 9 + additional_ani_param_num
+    num_param = 9 + ani_param_num
 else:
     raise NotImplementedError
 
@@ -98,18 +98,11 @@ init_lens_params = np.random.multivariate_normal(
 
 init_pos = np.concatenate((
     init_lens_params,
-    # lambda, ani_param, inclination (deg)
-    np.random.normal(loc=[900, 90, 0.9, *ani_param_init_mean],
-                     scale=[10, 5, 0.05, *ani_param_init_sigma],
-                     size=(num_walker, 4+additional_ani_param_num))
+    # inclination, kappa_ext, lamda_int, D_d, *ani_param
+    np.random.normal(loc=[90., 0.07, 1., 900, *ani_param_init_mean],
+                     scale=[5., 0.01, 0.05, 40, *ani_param_init_sigma],
+                     size=(num_walker, 4+ani_param_num))
 ), axis=1)
-
-# divide lens model predicted D_dt by lambda array as the sampled D_dt is
-# taken as the true D_dt
-if lens_model_type == 'powerlaw':
-    init_pos[:, 3] /= init_pos[:, -2]
-else:
-    init_pos[:, 4] /= init_pos[:, -2]
 
 
 def likelihood_function(params):
@@ -129,18 +122,18 @@ if is_cluster:
         print(software, anisotropy_model, aperture, sphericity,
               lens_model_type)
 
-        filename = out_dir + 'kcwi_dynamics_backend_{}_{}_{}_{}_{}_{}_{}.txt'.format(
+        filename = out_dir + 'kcwi_dynamics_backend_{}_{}_{}_{}_{}_{}_{}.h5'.format(
                                         software,
                                         aperture, anisotropy_model, sphericity,
                                         lens_model_type, snr, shape)
 
-        if load_init_from_file:
-            init_pos_saved = np.loadtxt(base_dir + 'init_pos.txt')
-            if lens_model_type == 'powerlaw':
-                init_pos = init_pos_saved[:init_pos.shape[0], :init_pos.shape[1]]
-            else:
-                init_pos[:, 4:] = init_pos_saved[:init_pos.shape[0],
-                                  3:init_pos.shape[1]-1]
+        # if load_init_from_file:
+        #     init_pos_saved = np.loadtxt(base_dir + 'init_pos.txt')
+        #     if lens_model_type == 'powerlaw':
+        #         init_pos = init_pos_saved[:init_pos.shape[0], :init_pos.shape[1]]
+        #     else:
+        #         init_pos[:, 4:] = init_pos_saved[:init_pos.shape[0],
+        #                           3:init_pos.shape[1]-1]
 
         backend = emcee.backends.HDFBackend(filename)
         if not resume:
@@ -169,9 +162,9 @@ else:
                                     # because it's fast
                                     )
 
-    if load_init_from_file:
-        init_pos_saved = np.loadtxt(base_dir + 'init_pos.txt')
-        init_pos = init_pos_saved[:init_pos.shape[0], :init_pos.shape[1]]
+    # if load_init_from_file:
+    #     init_pos_saved = np.loadtxt(base_dir + 'init_pos.txt')
+    #     init_pos = init_pos_saved[:init_pos.shape[0], :init_pos.shape[1]]
 
     sampler.run_mcmc(init_pos, num_steps,
                      progress=True)
@@ -179,16 +172,16 @@ else:
 chain = sampler.get_chain(flat=True)
 likelihood_chain = sampler.get_log_prob(flat=True)
 
-np.savetxt(out_dir + 'kcwi_dynamics_chain_{}_{}_{}_{}_{}_{}_{}.txt'.format(
-    software,
-    aperture, anisotropy_model, sphericity,
-    lens_model_type, snr, shape),
-           chain)
-np.savetxt(
-    out_dir + 'kcwi_dynamics_chain_{}_{}_{}_{}_{}_{}_{}_logL.txt'.format(
-        software,
-        aperture, anisotropy_model, sphericity,
-        lens_model_type, snr, shape),
-    likelihood_chain)
+# np.savetxt(out_dir + 'kcwi_dynamics_chain_{}_{}_{}_{}_{}_{}_{}.txt'.format(
+#     software,
+#     aperture, anisotropy_model, sphericity,
+#     lens_model_type, snr, shape),
+#            chain)
+# np.savetxt(
+#     out_dir + 'kcwi_dynamics_chain_{}_{}_{}_{}_{}_{}_{}_logL.txt'.format(
+#         software,
+#         aperture, anisotropy_model, sphericity,
+#         lens_model_type, snr, shape),
+#     likelihood_chain)
 
 print('finished computing velocity dispersions', chain.shape)

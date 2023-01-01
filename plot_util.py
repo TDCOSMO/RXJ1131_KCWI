@@ -13,22 +13,24 @@ pf.set_fontscale(2.)
 
 walker_ratio = 12
 
-labels_pl = ['theta_E', 'gamma', 'q', 'D_dt', 'D_d',
-             'inclination', 'lamda',
+labels_pl = ['theta_E', 'gamma', 'q', 'D_dt',
+             'inclination', 'kappa_ext', 'lambda_int', 'D_d',
              'ani_param_1',
              'ani_param_2', 'ani_param_3']  # [:samples_mcmc.shape[1]]
 latex_labels_pl = ['{\\theta}_{\\rm E} \ (^{\prime\prime})',
                    '{\\gamma}',
                    'q', #'{\\rm PA} {\ (^{\circ})}',
                    'D_{\\Delta t}\ ({\\rm Mpc})',
-                   '{\\rm blinded}\ D_{\\rm d}',
                    'i {\ (^{\circ})}',
+                   '{\\kappa}_{\\rm ext}',
                    '{\\lambda}_{\\rm MST}',
+                   '{\\rm blinded}\ D_{\\rm d}',
                    'a_{\\rm ani,1}', 'a_{\\rm ani,2}', 'a_{\\rm ani,3}'
                    ]
 
-labels_composite = ['kappa_s', 'r_scale', 'M/L', 'q', 'D_dt', 'D_d',
-                    'inclination', 'lamda', 'ani_param_1',
+labels_composite = ['kappa_s', 'r_scale', 'M/L', 'q', 'D_dt',
+                    'inclination', 'kappa_ext', 'lambda_int', 'D_d',
+                    'ani_param_1',
                     'ani_param_2', 'ani_param_3']  # [:samples_mcmc.shape[1]]
 
 latex_labels_composite = ['{\\kappa}_{\\rm s}',
@@ -36,9 +38,10 @@ latex_labels_composite = ['{\\kappa}_{\\rm s}',
                           'M/L\ (M_{\\odot}/L_{\\odot})',
                           'q', #'{\\rm PA} {\ (^{\circ})}',
                           'D_{\\Delta t}\ ({\\rm Mpc})',
-                          '{\\rm blinded}\ D_{\\rm d}',
                           'i {\ (^{\circ})}',
+                          '{\\kappa}_{\\rm ext}',
                           '{\\lambda}',
+                          '{\\rm blinded}\ D_{\\rm d}',
                           'a_{\\rm ani,1}', 'a_{\\rm ani,2}', 'a_{\\rm ani,3}'
                           ]
 
@@ -126,7 +129,7 @@ def get_emcee_backend(software, aperture_type, anisotropy_model, is_spherical,
     :param shape: 'oblate' or 'prolate'
     :return: emcee backend
     """
-    filename = '../dynamics_chains/kcwi_dynamics_backend_{}_{}_{}_{}_{}_{}_{}.txt'\
+    filename = '../dynamics_chains/kcwi_dynamics_backend_{}_{}_{}_{}_{}_{}_{}.h5'\
         .format(software, aperture_type, anisotropy_model,
                 str(is_spherical), lens_model_type, snr, shape
         )
