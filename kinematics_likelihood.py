@@ -197,14 +197,6 @@ class KinematicLikelihood(object):
 
         return voronoi_bin_mapping
 
-    def get_kappa_ext_prior(self, kappa_ext):
-        """
-        Get the prior for kappa_ext
-        :param kappa_ext: external convergence
-        :return: prior
-        """
-        return self.kappa_ext_kde(kappa_ext)
-
     @staticmethod
     def interp_points(points):
         """
