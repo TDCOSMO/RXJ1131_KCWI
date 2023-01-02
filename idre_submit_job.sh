@@ -2,7 +2,7 @@
 #!/bin/bash
 
 name="RXJ1131_vd"
-slots=96
+slots=48
 mem=999 # this will give you "mem" Megabyte per proc
 time=24 # this will give you "time" hours runtime
 hp="" #",highp"

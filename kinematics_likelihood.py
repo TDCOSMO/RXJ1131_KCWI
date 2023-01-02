@@ -286,8 +286,8 @@ class KinematicLikelihood(object):
         :param ani_param: anisotropy parameter
         :return: log prior of the anisotropy parameter
         """
-        low = 0.75  # 0.87
-        hi = 1.15  # 1.12
+        low = 0.87  # 0.87
+        hi = 1.12 # 1.12
         if self.anisotropy_model == 'constant':
             if not low < ani_param < hi:
                 return -np.inf

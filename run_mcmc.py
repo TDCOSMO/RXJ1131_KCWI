@@ -13,7 +13,7 @@ from kinematics_likelihood import KinematicLikelihood
 import emcee
 
 is_cluster = True
-resume = True
+resume = False
 # load_init_from_file = False
 #run_name = str(sys.argv[1])
 #run_type = str(sys.argv[2])

@@ -20,10 +20,10 @@ labels_pl = ['theta_E', 'gamma', 'q', 'D_dt',
 latex_labels_pl = ['{\\theta}_{\\rm E} \ (^{\prime\prime})',
                    '{\\gamma}',
                    'q', #'{\\rm PA} {\ (^{\circ})}',
-                   'D_{\\Delta t}\ ({\\rm Mpc})',
+                   'D_{\\Delta t}^{\\rm model}\ ({\\rm Mpc})',
                    'i {\ (^{\circ})}',
                    '{\\kappa}_{\\rm ext}',
-                   '{\\lambda}_{\\rm MST}',
+                   '{\\rm blinded}\ {\\lambda}_{\\rm int}',
                    '{\\rm blinded}\ D_{\\rm d}',
                    'a_{\\rm ani,1}', 'a_{\\rm ani,2}', 'a_{\\rm ani,3}'
                    ]
@@ -37,10 +37,10 @@ latex_labels_composite = ['{\\kappa}_{\\rm s}',
                           'r_{\\rm scale}\ (^{\prime\prime})',
                           'M/L\ (M_{\\odot}/L_{\\odot})',
                           'q', #'{\\rm PA} {\ (^{\circ})}',
-                          'D_{\\Delta t}\ ({\\rm Mpc})',
+                          'D_{\\Delta t}^{\\rm model}\ ({\\rm Mpc})',
                           'i {\ (^{\circ})}',
                           '{\\kappa}_{\\rm ext}',
-                          '{\\lambda}',
+                          '{\\rm blinded}\ {\\lambda}_{\\rm int}',
                           '{\\rm blinded}\ D_{\\rm d}',
                           'a_{\\rm ani,1}', 'a_{\\rm ani,2}', 'a_{\\rm ani,3}'
                           ]
@@ -377,7 +377,7 @@ def get_getdist_samples(software, aperture_type, anisotropy_model,
                         shape='oblate',
                         oblate_fraction=None,
                         burnin=-100, latex_labels=None, select_indices=None,
-                        blind_D=True, 
+                        blind_D=True, blind_lambda_int=True, smooth=1
                         ):
     """
     Get samples from the chain in getdist format
@@ -393,6 +393,8 @@ def get_getdist_samples(software, aperture_type, anisotropy_model,
     :param latex_labels: list of latex labels
     :param select_indices: list of indices to select
     :param blind_D: if True, blind the distance parameter
+    :param blind_lambda_int: if True, blind the lambda_int parameter
+    :param smooth: smoothing factor for getdist
     :return: getdist MCSamples object
     """
     if lens_model_type == 'powerlaw':
@@ -427,34 +429,42 @@ def get_getdist_samples(software, aperture_type, anisotropy_model,
 #         chain = chain[:, burnin:, :].reshape((-1, chain.shape[-1]))
 
     if lens_model_type == 'powerlaw':
-        d_index = 4
+        d_index = 7
+        lambda_int_index = 6
     else:
-        d_index = 5
+        d_index = 8
+        lambda_int_index = 7
 
     # chain[:, d_index+2] = chain[:, d_index+2] * D_s / D_ds
     # chain[:, d_index] = chain[:, d_index] / chain[:, d_index+2] / (1. + Z_L)
 
-    if blind_D is None:
+    if blind_D is None or blind_D is True:
         mean_D = np.median(chain[:, d_index])
+        mean_lambda_int = np.median(chain[:, lambda_int_index])
     else:
-        if blind_D is True:
-            mean_D = np.median(chain[:, d_index])
-        else:
-            mean_D = blind_D
-        
+        mean_D = blind_D
+        mean_lambda_int = blind_lambda_int
+
+    if blind_D is not False:
         chain[:, d_index] -= mean_D
         chain[:, d_index] /= mean_D
+
+        chain[:, lambda_int_index] -= mean_lambda_int
+        chain[:, lambda_int_index] /= mean_lambda_int
         
     low, hi = np.percentile(chain[:, d_index], q=[16, 84])
     std_D = (hi - low) / 2.
+
+    low, hi = np.percentile(chain[:, lambda_int_index], q=[16, 84])
+    std_lambda_int = (hi - low) / 2.
 
     if select_indices is None:
         mc_samples = MCSamples(samples=chain,
                                names=labels[:chain.shape[-1]],
                                labels=latex_labels[:chain.shape[-1]],
                                settings={'mult_bias_correction_order': 0,
-                                         'smooth_scale_2D': 1,
-                                         'smooth_scale_1D': 1
+                                         'smooth_scale_2D': smooth,
+                                         'smooth_scale_1D': smooth
                                          },
                                )
     else:
@@ -465,13 +475,16 @@ def get_getdist_samples(software, aperture_type, anisotropy_model,
                                names=np.array(labels)[select_indices],
                                labels=np.array(latex_labels)[select_indices],
                                settings={'mult_bias_correction_order': 0,
-                                         'smooth_scale_2D': .45,
-                                         'smooth_scale_1D': .45
+                                         'smooth_scale_2D': smooth,
+                                         'smooth_scale_1D': smooth
                                          },
                                )
 
 #     if blind_D is True:
-    return mc_samples, np.median(chain[:, d_index]), std_D, mean_D
+    return mc_samples, np.median(chain[:, d_index]), std_D, mean_D, \
+           np.median(chain[:, lambda_int_index]), std_lambda_int, \
+            mean_lambda_int
+
 #     else:
 #         return mc_samples, np.median(chain[:, d_index]), std_D, 
 
@@ -481,7 +494,8 @@ def plot_dist(softwares, aperture_types, anisotropy_models, is_sphericals,
               oblate_fractions=None,
               burnin=-100, legend_labels=[], save_fig=None,
               ani_param_latex=None, font_scale=1,
-              select_indices=None, blind=True, print_difference=False
+              select_indices=None, blind=True, print_difference=False,
+              smooth=0.45
               ):
     """
     Plot the posterior distributions of the parameters using getdist
@@ -501,6 +515,7 @@ def plot_dist(softwares, aperture_types, anisotropy_models, is_sphericals,
     :param select_indices: list of indices to select for plotting, if None plot all
     :param blind: if True, blind the distance parameter
     :param print_difference: if True, print the difference between the first and every other case
+    :param smooth: smoothing scale for the 2D and 1D plots in getdist
     :return: None
     """
     if 'powerlaw' in lens_model_types:
@@ -526,32 +541,41 @@ def plot_dist(softwares, aperture_types, anisotropy_models, is_sphericals,
     mc_samples_list = []
 
     first = True
-    for i, (s, a, ani, sph, model, snr, shape, f_obl) in enumerate(zip(softwares,
-                                                      aperture_types,
-                                     anisotropy_models, is_sphericals,
-                                     lens_model_types, snrs, shapes, oblate_fractions)):
+    for i, (s, a, ani, sph, model, snr, shape, f_obl) in enumerate(zip(
+            softwares, aperture_types, anisotropy_models, is_sphericals,
+            lens_model_types, snrs, shapes, oblate_fractions)):
         if first:
-            mc_samples, mean_D_first, std_D_first, mean_D_real = get_getdist_samples(s, a, ani, sph, model, snr, shape,
+            mc_samples, mean_D_first, std_D_first, mean_D_real, \
+            mean_lambda_int_first, std_lambda_first, mean_lambda_int_real \
+                = get_getdist_samples(s, a, ani, sph, model, snr, shape,
                                                    burnin=burnin,
                                                    oblate_fraction=f_obl,
                                                    latex_labels=latex_labels,
                                                    select_indices=None if
                                                    select_indices is None else
                                                    select_indices[i],
-                                                   blind_D=blind
+                                                   blind_D=blind,
+                                                   blind_lambda_int=blind,
+                                                   smooth=smooth
                                                    )
             first = False
             print('D uncertainty {:.2f}'.format(std_D_first))
         else:
-            mc_samples, mean_D, std_D, _ = get_getdist_samples(s, a, ani, sph, model, snr, shape,
-                                                burnin=burnin,
-                                                oblate_fraction=f_obl,
-                                                latex_labels=latex_labels,
-                                                select_indices=None if
-                                                select_indices is None else
-                                                select_indices[i],
-                                                blind_D=mean_D_real if blind is not None else None
-                                                )
+            mc_samples, mean_D, std_D, _, mean_lambda_int, std_lambda_int, _ = \
+                get_getdist_samples(s, a, ani,
+                                    sph, model, snr, shape,
+                                    burnin=burnin,
+                                    oblate_fraction=f_obl,
+                                    latex_labels=latex_labels,
+                                    select_indices=None if
+                                    select_indices is None else
+                                    select_indices[i],
+                                    blind_D=mean_D_real if
+                                    blind is not None else None,
+                                    blind_lambda_int=mean_lambda_int_real if
+                                    blind is not None else None,
+                                    smooth=smooth
+                                    )
             if print_difference:
                 if blind is None:
                     print('Difference: {:.2f}%, {:.2f} sigma, D uncertainty: {:.2f}'.format((mean_D_first - mean_D)/mean_D_first * 100,
