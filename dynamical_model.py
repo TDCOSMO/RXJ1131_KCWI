@@ -298,7 +298,7 @@ class DynamicalModel(object):
             flux_r = light_model.surface_brightness(rs, 0 * rs,
                                                     kwargs_light)
 
-            mge_fit = mge_fit_1d(rs, flux_r, ngauss=20, quiet=True)
+            mge_fit = mge_fit_1d(rs, flux_r, ngauss=self._n_gauss, quiet=True)
 
             mge = (mge_fit.sol[0], mge_fit.sol[1])
 
@@ -369,7 +369,11 @@ class DynamicalModel(object):
         :return: surf_mass, sigma_mass, qobs_mass
         """
         # core radius for approximate MST
-        r_c = r_c_mult * 1.64
+        r_c = 12 # arcsec
+        # from rerunning this notebook for RXJ1131
+        # parameters: https://github.com/TDCOSMO/hierarchy_analysis_2020_public
+        # /blob/6c293af582c398a5c9de60a51cb0c44432a3c598/MST_impact/MST_pl_
+        # cored.ipynb
 
         if self.mass_model == 'powerlaw':
             theta_e, gamma, q = lens_params

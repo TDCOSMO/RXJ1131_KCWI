@@ -4,6 +4,7 @@ import corner
 from getdist import plots
 from getdist import MCSamples
 import emcee
+import seaborn as sns
 
 import paperfig as pf
 from kinematics_likelihood import KinematicLikelihood
@@ -19,8 +20,8 @@ labels_pl = ['theta_E', 'gamma', 'q', 'D_dt',
              'ani_param_2', 'ani_param_3']  # [:samples_mcmc.shape[1]]
 latex_labels_pl = ['{\\theta}_{\\rm E} \ (^{\prime\prime})',
                    '{\\gamma}',
-                   'q', #'{\\rm PA} {\ (^{\circ})}',
-                   'D_{\\Delta t}^{\\rm model}\ ({\\rm Mpc})',
+                   'q_{\\rm m}', #'{\\rm PA} {\ (^{\circ})}',
+                   '{\\rm blinded}\ D_{\\Delta t}',
                    'i {\ (^{\circ})}',
                    '{\\kappa}_{\\rm ext}',
                    '{\\rm blinded}\ {\\lambda}_{\\rm int}',
@@ -36,8 +37,8 @@ labels_composite = ['kappa_s', 'r_scale', 'M/L', 'q', 'D_dt',
 latex_labels_composite = ['{\\kappa}_{\\rm s}',
                           'r_{\\rm scale}\ (^{\prime\prime})',
                           'M/L\ (M_{\\odot}/L_{\\odot})',
-                          'q', #'{\\rm PA} {\ (^{\circ})}',
-                          'D_{\\Delta t}^{\\rm model}\ ({\\rm Mpc})',
+                          'q_{\\rm m}', #'{\\rm PA} {\ (^{\circ})}',
+                          '{\\rm blinded}\ D_{\\Delta t}',
                           'i {\ (^{\circ})}',
                           '{\\kappa}_{\\rm ext}',
                           '{\\rm blinded}\ {\\lambda}_{\\rm int}',
@@ -188,7 +189,8 @@ def get_original_chain(software, aperture_type, anisotropy_model, is_spherical,
 
 
 def get_chain(software, aperture_type, anisotropy_model, is_spherical,
-              lens_model_type='powerlaw', snr=23, shape='oblate', burnin=-100):
+              lens_model_type='powerlaw', snr=23, shape='oblate',
+              burnin=-100, thin=1):
     """
     Get MCMC chain in original 2D shape as [..., parameter]
     :param software: 'jampy' or 'galkin'
@@ -204,7 +206,7 @@ def get_chain(software, aperture_type, anisotropy_model, is_spherical,
     chain = get_original_chain(software, aperture_type, anisotropy_model,
                                is_spherical, lens_model_type, snr, shape)
 
-    chain = chain[:, burnin:, :].reshape((-1, chain.shape[-1]))
+    chain = chain[:, burnin::thin, :].reshape((-1, chain.shape[-1]))
     
     return chain
 
@@ -243,7 +245,6 @@ def plot_mcmc_trace_walkers(software, aperture_type, anisotropy_model,
 
     for i in range(n_params):
         ax = axes[i]
-        print(chain[:, :, i].shape)
         ax.plot(chain[:, :, i].T, "k", alpha=0.05)
         ax.set_xlim(0, n_step)
         ax.set_ylabel(labels[i])
@@ -377,7 +378,8 @@ def get_getdist_samples(software, aperture_type, anisotropy_model,
                         shape='oblate',
                         oblate_fraction=None,
                         burnin=-100, latex_labels=None, select_indices=None,
-                        blind_D=True, blind_lambda_int=True, smooth=1
+                        blind_D=True, blind_lambda_int=True, blind_Ddt=True,
+                        smooth=1, thin=1
                         ):
     """
     Get samples from the chain in getdist format
@@ -394,6 +396,7 @@ def get_getdist_samples(software, aperture_type, anisotropy_model,
     :param select_indices: list of indices to select
     :param blind_D: if True, blind the distance parameter
     :param blind_lambda_int: if True, blind the lambda_int parameter
+    :param blind_Ddt: if True, blind the time-delay distance
     :param smooth: smoothing factor for getdist
     :return: getdist MCSamples object
     """
@@ -408,10 +411,10 @@ def get_getdist_samples(software, aperture_type, anisotropy_model,
 
     if oblate_fraction is not None:
         chain_obl = get_chain(software, aperture_type, anisotropy_model, is_spherical,
-                      lens_model_type, snr, 'oblate', burnin=burnin)
+                      lens_model_type, snr, 'oblate', burnin=burnin, thin=thin)
 #         chain_obl = chain_obl[:, burnin:, :].reshape((-1, chain_obl.shape[-1]))
         chain_pro = get_chain(software, aperture_type, anisotropy_model, is_spherical,
-                      lens_model_type, snr, 'prolate', burnin=burnin)
+                      lens_model_type, snr, 'prolate', burnin=burnin, thin=thin)
 #         chain_pro = chain_pro[:, burnin:, :].reshape((-1, chain_pro.shape[-1]))
 
         indices = np.arange(chain_pro.shape[0])
@@ -421,7 +424,6 @@ def get_getdist_samples(software, aperture_type, anisotropy_model,
             ),
             axis=0
         )
-        print(chain_obl.shape, chain_pro.shape, chain.shape, oblate_fraction)
     else:
         chain = get_chain(software, aperture_type, anisotropy_model, is_spherical,
                           lens_model_type, snr, shape, burnin=burnin)
@@ -431,19 +433,33 @@ def get_getdist_samples(software, aperture_type, anisotropy_model,
     if lens_model_type == 'powerlaw':
         d_index = 7
         lambda_int_index = 6
+        ddt_index = 3
+        kappa_index = 5
+        i_index = 4
     else:
         d_index = 8
         lambda_int_index = 7
+        ddt_index = 4
+        kappa_index = 6
+        i_index = 5
+
+    incs = chain[:, i_index]
+    incs[incs > 90] = 180 - incs[incs > 90]
 
     # chain[:, d_index+2] = chain[:, d_index+2] * D_s / D_ds
     # chain[:, d_index] = chain[:, d_index] / chain[:, d_index+2] / (1. + Z_L)
 
+    chain[:, ddt_index] = chain[:, ddt_index] / (1 - chain[:, kappa_index]) \
+        / chain[:, lambda_int_index]
+
     if blind_D is None or blind_D is True:
         mean_D = np.median(chain[:, d_index])
         mean_lambda_int = np.median(chain[:, lambda_int_index])
+        mean_Ddt = np.median(chain[:, ddt_index])
     else:
         mean_D = blind_D
         mean_lambda_int = blind_lambda_int
+        mean_Ddt = blind_Ddt
 
     if blind_D is not False:
         chain[:, d_index] -= mean_D
@@ -451,12 +467,28 @@ def get_getdist_samples(software, aperture_type, anisotropy_model,
 
         chain[:, lambda_int_index] -= mean_lambda_int
         chain[:, lambda_int_index] /= mean_lambda_int
-        
+
+        chain[:, ddt_index] -= mean_Ddt
+        chain[:, ddt_index] /= mean_Ddt
+
     low, hi = np.percentile(chain[:, d_index], q=[16, 84])
     std_D = (hi - low) / 2.
 
     low, hi = np.percentile(chain[:, lambda_int_index], q=[16, 84])
     std_lambda_int = (hi - low) / 2.
+
+    low, hi = np.percentile(chain[:, ddt_index], q=[16, 84])
+    std_Ddt = (hi - low) / 2.
+
+    # if blind_D is False:
+    #     # '{\\rm blinded}\ D_{\\Delta t}',
+    #     # 'i {\ (^{\circ})}',
+    #     # '{\\kappa}_{\\rm ext}',
+    #     # '{\\rm blinded}\ {\\lambda}_{\\rm int}',
+    #     # '{\\rm blinded}\ D_{\\rm d}',
+    #     latex_labels[d_index] = 'D_{\\rm d}\ {\\rm (Mpc)}'
+    #     latex_labels[ddt_index] = 'D_{\\Delta t}\ {\\rm (Mpc)}'
+    #     latex_labels[lambda_int_index] = '{\\lambda}_{\\rm int}'
 
     if select_indices is None:
         mc_samples = MCSamples(samples=chain,
@@ -470,7 +502,7 @@ def get_getdist_samples(software, aperture_type, anisotropy_model,
     else:
         labels = labels[:chain.shape[-1]]
         latex_labels = latex_labels[:chain.shape[-1]]
-        print(chain.shape, len(labels))
+
         mc_samples = MCSamples(samples=chain[:, select_indices],
                                names=np.array(labels)[select_indices],
                                labels=np.array(latex_labels)[select_indices],
@@ -483,7 +515,8 @@ def get_getdist_samples(software, aperture_type, anisotropy_model,
 #     if blind_D is True:
     return mc_samples, np.median(chain[:, d_index]), std_D, mean_D, \
            np.median(chain[:, lambda_int_index]), std_lambda_int, \
-            mean_lambda_int
+           mean_lambda_int, np.median(chain[:, ddt_index]), std_Ddt, \
+           mean_Ddt
 
 #     else:
 #         return mc_samples, np.median(chain[:, d_index]), std_D, 
@@ -495,7 +528,7 @@ def plot_dist(softwares, aperture_types, anisotropy_models, is_sphericals,
               burnin=-100, legend_labels=[], save_fig=None,
               ani_param_latex=None, font_scale=1,
               select_indices=None, blind=True, print_difference=False,
-              smooth=0.45
+              smooth=0.45, colors=None, thin=1,
               ):
     """
     Plot the posterior distributions of the parameters using getdist
@@ -546,7 +579,8 @@ def plot_dist(softwares, aperture_types, anisotropy_models, is_sphericals,
             lens_model_types, snrs, shapes, oblate_fractions)):
         if first:
             mc_samples, mean_D_first, std_D_first, mean_D_real, \
-            mean_lambda_int_first, std_lambda_first, mean_lambda_int_real \
+            mean_lambda_int_first, std_lambda_first, mean_lambda_int_real, \
+            mean_Ddt_first, std_Ddt_first, mean_Ddt_real \
                 = get_getdist_samples(s, a, ani, sph, model, snr, shape,
                                                    burnin=burnin,
                                                    oblate_fraction=f_obl,
@@ -556,12 +590,15 @@ def plot_dist(softwares, aperture_types, anisotropy_models, is_sphericals,
                                                    select_indices[i],
                                                    blind_D=blind,
                                                    blind_lambda_int=blind,
-                                                   smooth=smooth
+                                                   blind_Ddt=blind,
+                                                   smooth=smooth,
+                                                   thin=thin,
                                                    )
             first = False
-            print('D uncertainty {:.2f}'.format(std_D_first))
+            print('D uncertainty {:.4f}'.format(std_D_first))
         else:
-            mc_samples, mean_D, std_D, _, mean_lambda_int, std_lambda_int, _ = \
+            mc_samples, mean_D, std_D, _, mean_lambda_int, std_lambda_int, \
+            _, mean_Ddt, std_Ddt, _ = \
                 get_getdist_samples(s, a, ani,
                                     sph, model, snr, shape,
                                     burnin=burnin,
@@ -574,15 +611,34 @@ def plot_dist(softwares, aperture_types, anisotropy_models, is_sphericals,
                                     blind is not None else None,
                                     blind_lambda_int=mean_lambda_int_real if
                                     blind is not None else None,
+                                    blind_Ddt=mean_Ddt_real if
+                                    blind is not None else None,
                                     smooth=smooth
                                     )
             if print_difference:
                 if blind is None:
-                    print('Difference: {:.2f}%, {:.2f} sigma, D uncertainty: {:.2f}'.format((mean_D_first - mean_D)/mean_D_first * 100,
-                                                                 (mean_D_first - mean_D)/np.sqrt(std_D_first**2 + std_D**2), std_D))
+                    print('D Difference: {:.2f}%, {:.2f} sigma, '
+                          'D uncertainty: {:.4f}'.format(
+                            (mean_D_first - mean_D)/mean_D_first * 100,
+                            (mean_D_first - mean_D)/np.sqrt(std_D_first**2 + std_D**2), std_D))
+                    print(
+                        'Ddt Difference: {:.2f}%, {:.2f} sigma, '
+                        'Ddt uncertainty: '
+                        '{:.4f}'.format(
+                            (mean_Ddt_first - mean_Ddt) / mean_Ddt_first * 100,
+                            (mean_Ddt_first - mean_D) / np.sqrt(
+                                std_Ddt_first ** 2 + std_Ddt ** 2), std_Ddt))
                 else:
-                    print('Difference: {:.2f}%, {:.2f} sigma, D uncertainty: {:.2f}'.format((mean_D_first - mean_D) * 100,
-                                                                 (mean_D_first - mean_D)/np.sqrt(std_D_first**2 + std_D**2), std_D))
+                    print('D Difference: {:.2f}%, {:.2f} sigma, '
+                          'D uncertainty: {:.4f}'.format(
+                            (mean_D_first - mean_D) * 100,
+                            (mean_D_first - mean_D)/np.sqrt(std_D_first**2 + std_D**2), std_D))
+                    print(
+                        'Ddt Difference: {:.2f}%, {:.2f} sigma, '
+                        'D uncertainty: {:.4f}'.format(
+                            (mean_Ddt_first - mean_Ddt) * 100,
+                            (mean_Ddt_first - mean_Ddt) / np.sqrt(
+                                std_Ddt_first ** 2 + std_Ddt ** 2), std_Ddt))
             
         mc_samples_list.append(mc_samples)
 
@@ -593,32 +649,37 @@ def plot_dist(softwares, aperture_types, anisotropy_models, is_sphericals,
     g.settings.axes_fontsize = 16 * font_scale
     g.settings.lab_fontsize = 16 * font_scale
     # g.settings.norm_1d_density = False
-    g.settings.legend_fontsize = 18 * font_scale
+    g.settings.legend_fontsize = 16 * font_scale
     # g.settings.smooth_scale_2D = 0.3
     # g.settings.smooth_scale_1D = 0.3
 
-    colors = [pf.cb2_blue, pf.cb2_orange, pf.cb2_emerald, pf.cb_grey]
+    if colors is None:
+        colors = [pf.cb2_blue, pf.cb2_orange, pf.cb2_emerald, pf.cb_grey]
 
+    if blind:
+        limits = {'inclination': (50, 90),
+                  'ani_param_1': (0.78, 1.14),
+                  'ani_param_2': (0.78, 1.14),
+                 }
+    else:
+        limits = {'inclination': (50, 90),
+                  'lambda_int': (0.5, 1.13),
+                  'ani_param_1': (0.78, 1.14),
+                  'ani_param_2': (0.78, 1.14),
+                  }
     g.triangle_plot(mc_samples_list,
                     legend_labels=legend_labels,
                     filled=True, shaded=False,
                     alpha_filled_add=.5,
                     contour_lws=[2 for l in legend_labels],
                     contour_ls=['-' for l in legend_labels],
+                    zorder=[1, 2, -1, -2],
                     # filled=False,
                     # contour_colors=[sns.xkcd_rgb['emerald'], sns.xkcd_rgb['bright orange']],
                     contour_args={'alpha': .5},
-                    # line_args={'lw': 7., "zorder": 30},
                     # line_args={'lw': 1., 'alpha': 1.}
                     contour_colors=colors,
-                    param_limits={'inclination': (50, 130),
-                                  'ani_param_1': (0.75, 1.15),
-                                  'ani_param_2': (0.75, 1.15),
-                                 }
-                    #                     param_limits={'dphi_AB': (-0.45, 0.15),
-                    #                                   'dphi_AC': (-0.45, 0.15),
-                    #                                   'dphi_AD': (-0.45, 0.15),
-                    #                                   'lambda_int': (0.3, 3), 'a_ani': (0.5, 5.)},
+                    param_limits=limits
                     )
 
     # g.fig.tight_layout()
@@ -718,8 +779,7 @@ def plot_residual(software, aperture_type, anisotropy_model, sphericity,
         print('reduced chi^2: {:.2f}'.format(
             -2 * likelihood_class.get_log_likelihood(params)
             / len(likelihood_class.velocity_dispersion_mean)))
-    
-    axes = []
+
     
 #     vmax, vmin = 350, 100
 #     if ax is None:
@@ -728,10 +788,14 @@ def plot_residual(software, aperture_type, anisotropy_model, sphericity,
     
     v_rms_map[data_v_rms == 0] = np.nan
     data_v_rms[data_v_rms == 0] = np.nan
-    
-    fig = plt.figure(figsize=(15, 5))
-    ax = fig.add_subplot(131)
-    
+
+    fig, axes = plt.subplots(1, 4, figsize=pf.get_fig_size(
+        width=pf.mnras_textwidth*2, height_ratio=1/2),
+                             width_ratios=[1, 1, 1, 0.7],
+                             height_ratios=[1],
+                             )
+
+    ax = axes[0]
     im = ax.imshow(data_v_rms[11:34, 12:35],
                    cmap=cmap, origin='lower',
                    norm=norm)
@@ -744,9 +808,8 @@ def plot_residual(software, aperture_type, anisotropy_model, sphericity,
     ax.set_title('Data')
     ax.set_xticks([])
     ax.set_yticks([])
-    axes.append(ax)
-    
-    ax = fig.add_subplot(132)
+
+    ax = axes[1]
     im = ax.imshow(v_rms_map[11:34, 12:35],
                    cmap=cmap, origin='lower',
                    norm=norm)
@@ -757,10 +820,9 @@ def plot_residual(software, aperture_type, anisotropy_model, sphericity,
     plt.colorbar(im, cax=cax, label=r'$\sigma_{\rm los}$ (km s$^{-1}$)', ticks=[350, 300, 250, 200, 0])
     ax.set_title('Model')
     ax.set_xticks([])
-    ax.set_yticks([])                 
-    axes.append(ax)                 
+    ax.set_yticks([])
     
-    ax = fig.add_subplot(133)
+    ax = axes[2]
     im = ax.matshow(((data_v_rms - model_v_rms) / noise_v_rms)[11:34, 12:35],
                     vmax=3, vmin=-3, cmap='RdBu_r', origin='lower'
                     )
@@ -769,14 +831,34 @@ def plot_residual(software, aperture_type, anisotropy_model, sphericity,
     plt.colorbar(im, cax=cax, label=r'(data$-$model)/noise')
     ax.set_title('Residual')
     ax.set_xticks([])
-    ax.set_yticks([])    
-    axes.append(ax)
-                     
+    ax.set_yticks([])
+
+    ax = axes[3]
+    # ax.hist(((data_v_rms - model_v_rms) / noise_v_rms)[11:34, 12:35].flatten(),
+    #         bins=15, range=(-3, 3), histtype='step', color=pf.cb_orange,
+    #         density=True)
+    sns.kdeplot(((data_v_rms - model_v_rms) / noise_v_rms)[11:34, 12:35].flatten(),
+                ax=ax, color=pf.cb_orange, shade=True, shade_lowest=False)
+    # plot a gaussian function with std 1
+    x = np.linspace(-3, 3, 100)
+    ax.plot(x, 1/np.sqrt(2*np.pi) * np.exp(-x**2/2),
+            color=pf.cb_grey, linestyle='--', zorder=-20)
+    ax.set_xlabel(r'(data$-$model)/noise')
+    ax.set_ylabel('density')
+    ax.set_aspect(6/.5)
+    ax.set_title('Residual distribution')
+
+    # make ax size equal to matshow plot
+    ax.set_xlim(-3, 3)
+    ax.set_ylim(0, 0.5)
+
     return fig, axes
 
 
 def get_bic(software, aperture_type, anisotropy_model, sphericity,
-            lens_model_type='powerlaw', snr=23, shape='oblate', burnin=-100):
+            lens_model_type='powerlaw', snr=23, shape='oblate', burnin=-100,
+            verbose=False
+            ):
     """
     Get the Bayesian information criterion
     :param software: software to use, 'jampy' or 'galkin'

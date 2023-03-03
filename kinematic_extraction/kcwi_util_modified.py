@@ -522,13 +522,12 @@ def poisson_noise(T_exp, gal_lin, std_bk_noise, per_second=False):
     The first term represents noise from the astrophysical source, and the
     second term is background noise (including read noise etc.).
     When power=1 and scale=1 with d_i in counts, the astrophysical source noise
-    (=1*d_i^1=d_i) is Poisson. Suyu 2012 and Suyu et al. 2013a have somels
-
+    (=1*d_i^1=d_i) is Poisson. Suyu 2012 and Suyu et al. 2013a have some
     description of this.
 
-    To construct the weight map using the esource_noise_model:
+    To construct the weight map using the source_noise_model:
     -- set power=1
-    -- obtain const by estimating the variance of the background (i.e., const = sigma_bkgd^2 from an empty part of of the     science image).
+    -- obtain const by estimating the variance of the background (i.e., const = sigma_bkgd^2 from an empty part of of the science image).
     -- the scale is 1 if d_i is in counts, but otherwise it needs to account for exposure time if d_i is in counts per second.
 
     Since the unit of the KCWI data is flux/AA (see fits header),

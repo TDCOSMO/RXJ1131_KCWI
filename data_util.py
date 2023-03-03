@@ -44,7 +44,8 @@ def get_kinematics_maps(array_1d, bin_mapping):
     :param bin_mapping: 2D array of bin mapping
     :return: 2D map
     """
-    output = np.zeros((43, 43))
+    # output = np.zeros((43, 43))
+    output = np.zeros_like(bin_mapping)
 
     for i in range(output.shape[0]):
         for j in range(output.shape[1]):

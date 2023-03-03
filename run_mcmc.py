@@ -49,15 +49,15 @@ else:
 
 if anisotropy_model == 'step':
     ani_param_num = 2
-    ani_param_init_mean = [1, 1]
+    ani_param_init_mean = [0.95, 0.95]
     ani_param_init_sigma = [0.05, 0.05]
 elif anisotropy_model == 'free_step':
     ani_param_num = 3
-    ani_param_init_mean = [1., 1, 30]
+    ani_param_init_mean = [1., 1., 30]
     ani_param_init_sigma = [0.05, 0.05, 10]
 else:
     ani_param_num = 1
-    ani_param_init_mean = [.85]
+    ani_param_init_mean = [0.95]
     ani_param_init_sigma = [0.05]
 
 if anisotropy_model == 'om':
@@ -75,7 +75,7 @@ else:
 walker_ratio = 12
 
 if anisotropy_model in ['step', 'free_step']:
-    num_steps = 1500
+    num_steps = 1000
 else:
     num_steps = 1000
 

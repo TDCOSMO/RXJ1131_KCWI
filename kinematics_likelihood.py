@@ -42,7 +42,7 @@ class KinematicLikelihood(object):
         self.velocity_dispersion_mean = None
         self.velocity_dispersion_covariance = None
         if self.aperture_type == 'single_slit':
-            self.velocity_dispersion_mean = 287 # 323 # km/s
+            self.velocity_dispersion_mean = 288 # 323 # km/s
             self.velocity_dispersion_covariance = (20 * self.velocity_dispersion_mean / 323) ** 2  # km/s
             self.velocity_dispersion_inverse_covariance = 1. \
                 / self.velocity_dispersion_covariance
@@ -235,7 +235,9 @@ class KinematicLikelihood(object):
         :param x: input
         :return: log(x)
         """
-        if x > 0:
+        if isinstance(x, np.ndarray):
+            return np.log(x)
+        elif x > 0:
             return np.log(x)
         else:
             return -np.inf
@@ -286,8 +288,8 @@ class KinematicLikelihood(object):
         :param ani_param: anisotropy parameter
         :return: log prior of the anisotropy parameter
         """
-        low = 0.87  # 0.87
-        hi = 1.12 # 1.12
+        low = 0.78  # 0.87
+        hi = 1.14 # 1.12
         if self.anisotropy_model == 'constant':
             if not low < ani_param < hi:
                 return -np.inf
@@ -317,7 +319,7 @@ class KinematicLikelihood(object):
         """
         if self.lens_model_type == 'powerlaw':
             theta_e, gamma, q, D_dt_model, inclination, \
-            kappa_ext, lamda_int, D_d, *ani_param = params
+            kappa_ext, lambda_int, D_d, *ani_param = params
 
             if not 1.0 < theta_e < 2.2:
                 return -np.inf
@@ -328,7 +330,7 @@ class KinematicLikelihood(object):
             lens_model_params = np.array([theta_e, gamma, q, D_dt_model])
         elif self.lens_model_type == 'composite':
             kappa_s, r_s, m2l, q, D_dt_model, inclination, \
-            kappa_ext, lamda_int, D_d, *ani_param = params
+            kappa_ext, lambda_int, D_d, *ani_param = params
             lens_model_params = np.array([kappa_s, r_s, m2l, q, D_dt_model])
         else:
             raise NotImplementedError
@@ -352,10 +354,10 @@ class KinematicLikelihood(object):
             inclination = 180 - inclination
 
         if self.lens_model_type == 'powerlaw':
-            if not 0.5 < lamda_int < 1.3:
+            if not 0.5 < lambda_int < 1.13:
                 return -np.inf
         elif self.lens_model_type == 'composite':
-            if not 0.5 < lamda_int < 1.4:
+            if not 0.5 < lambda_int < 1.13:
                 return -np.inf
 
         if not -0.1 < kappa_ext < 0.4:
