@@ -1,6 +1,6 @@
-# RXJ1131_KCWI
+# Keck/KCWI resolved kinematics analysis for RXJ1131
 
-Notebooks and codes to extract spatially resolved velocity dispersion from Keck/KCWI for RXJ1131 and incorporate it with time-delay $H_0$ measurement, that was used 
+Notebooks and codes to extract spatially resolved velocity dispersion from Keck/KCWI for RXJ1131$-$1231 and incorporate it with time-delay $H_0$ measurement, which were used 
 in [TDCOSMO-XII, Shajib et al. (2023)](https://ui.adsabs.harvard.edu/abs/2023A%26A...673A...9S/abstract).
 
 The notebooks and codes in an approximate order of the workflow are listed below.
